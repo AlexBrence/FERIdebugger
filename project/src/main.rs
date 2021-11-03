@@ -13,9 +13,12 @@ optional arguments:
 debugger commands:
 
     help                    print help for all commands
-    run / r                 run the program
+    run / r [arg1, arg2...] run the program with arguments
     continue / c            continue execution
     step / s                step one instruction
+
+    d / disas [label]       disassemble function
+    lf / list func          list all functions
 
     b / break [address]     set breakpoint at given address
     list break / lb         list all breakpoints
