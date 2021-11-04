@@ -1,7 +1,7 @@
 extern crate termion;       // for colors, style
 use termion::{color, style};
 
-use std::io;
+use std::{env, io};
 
 
 fn print_prompt() {
@@ -41,8 +41,10 @@ fn main() {
     while running {
         print_prompt();
         let input = get_input();
+        let splitted: Vec<&str> = input.as_str().split(' ').collect(); // All arguments are here
+        let option = splitted[0]; // First one is option, others are arguments
 
-        match input.as_str() {
+        match option {
             "help" | "h" => print_help(),
             "quit" | "q" => running = false,
             _ => println!("This command does not exist. Type 'help' for commands and functions.")
