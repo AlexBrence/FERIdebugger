@@ -93,10 +93,16 @@ fn main() {
                     if let Some(func) = spliterator.next(){
                         println!("dissasemble {} ", func.to_string());
                     }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
                         println!("break at adress {} ", address);
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
                     }
                 },
                 /*"del break" | "db" => {
@@ -108,15 +114,24 @@ fn main() {
                     if let Some(num) = spliterator.next(){
                         println!("enable breakpoint on: {}", num);
                     }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
                 },
                 "off" => {
                     if let Some(num) =spliterator.next(){
                         println!("disable breakpoint on: {}", num);
                     }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
                 },
                 "reg" => {
                     if let Some(name) = spliterator.next(){
                         println!("values in all registers");
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
                     }
                 },
                 "set" => {
@@ -126,7 +141,7 @@ fn main() {
                                 println!("set register {} to {}", name, num);
                             }
                             else{
-                                println!("not enough arguments");
+                                println!("not enugh arguments type 'help' for help")
                             }
                         }
                     }
@@ -135,6 +150,9 @@ fn main() {
                     if let Some(name) = spliterator.next(){
                         if let Some(byte_num) = spliterator.next(){
                             println!("dump {} bytes starting with {} ", byte_num, name);
+                        }
+                        else{
+                            println!("not enouhg argumets type 'help' ")
                         }
                     }
                 },
