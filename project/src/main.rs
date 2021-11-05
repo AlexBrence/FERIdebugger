@@ -31,6 +31,12 @@ fn get_input() -> String {
     return user_input.trim().to_string();
 }
 
+fn print_argument(mut arg: Vec<&str>){
+    arg = arg[1..(arg.len())].to_vec();
+    for element in arg{
+        println!("{}", element);
+    }
+}
 
 fn main() {
     let mut running: bool = true;
@@ -46,6 +52,20 @@ fn main() {
 
         match option {
             "help" | "h" => print_help(),
+            "run" | "r" => {println!("runs app: {}",splitted[1]);  print_argument(splitted);},//argument
+            "continue" | "c" => println!("continue"),
+            "step" | "s" => println!("step"),
+            "disas" | "d" => println!("dissasemble"),//argument
+            "list func" | "lf" => println!("list functions"),
+            "break" | "b" => println!("break at adress"),//argument
+            "list break" | "lb" => println!("list break"),
+            "del break" | "db" => println!("delete breakpoint"),//argument
+            "on" => println!("enable breakpoint"),//argument
+            "off" => println!("disable breakpoint"),//argument
+            "reg" => println!("values in all registers"),//argument
+            "set reg" => println!("set register name"),//argument
+            "mem" => println!("dump memory"),//argument
+            "stack" => println!("dump memory from current stack"),
             "quit" | "q" => running = false,
             _ => println!("This command does not exist. Type 'help' for commands and functions.")
         }
