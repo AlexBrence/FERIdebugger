@@ -31,12 +31,6 @@ fn get_input() -> String {
     return user_input.trim().to_string();
 }
 
-fn print_argument(mut arg: Vec<&str>){
-    arg = arg[1..(arg.len())].to_vec();
-    for element in arg{
-        println!("{}", element);
-    }
-}
 
 fn main() {
     let mut running: bool = true;
@@ -96,29 +90,54 @@ fn main() {
                 "continue" | "c" => println!("continue"),
                 "step" | "s" => println!("step"),
                 "disas" | "d" => {
-                    println!("dissasemble")
-                },//argument
+                    if let Some(func) = spliterator.next(){
+                        println!("dissasemble {} ", func.to_string());
+                    }
+                },
                 "break" | "b" => {
-                    println!("break at adress")
-                },//argument
-                "del break" | "db" => {
-                    println!("delete breakpoint")
-                },//argument
+                    if let Some(address) = spliterator.next(){
+                        println!("break at adress {} ", address);
+                    }
+                },
+                /*"del break" | "db" => {
+                    if let Some(num) = spliterator.next(){
+                        println!("delete breakpoint at: {}", num); 
+                    }
+                },*/
                 "on" => {
-                    println!("enable breakpoint")
-                },//argument
+                    if let Some(num) = spliterator.next(){
+                        println!("enable breakpoint on: {}", num);
+                    }
+                },
                 "off" => {
-                    println!("disable breakpoint")
-                },//argument
+                    if let Some(num) =spliterator.next(){
+                        println!("disable breakpoint on: {}", num);
+                    }
+                },
                 "reg" => {
-                    println!("values in all registers")
-                },//argument
-                "set reg" => {
-                    println!("set register name")
-                },//argument
+                    if let Some(name) = spliterator.next(){
+                        println!("values in all registers");
+                    }
+                },
+                "set" => {
+                    if let Some("reg")= spliterator.next(){
+                        if let Some(name) = spliterator.next(){
+                            if let Some(num) = spliterator.next(){
+                                println!("set register {} to {}", name, num);
+                            }
+                            else{
+                                println!("not enough arguments");
+                            }
+                        }
+                    }
+                },
                 "mem" => {
-                    println!("dump memory")
-                },//argument
+                    if let Some(name) = spliterator.next(){
+                        if let Some(byte_num) = spliterator.next(){
+                            println!("dump {} bytes starting with {} ", byte_num, name);
+                        }
+                    }
+                },
                 "stack" => println!("dump memory from current stack"),
                 "quit" | "q" => running = false,
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
