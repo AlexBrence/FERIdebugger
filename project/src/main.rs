@@ -1,7 +1,10 @@
+mod static_info;
+mod dynamic_info;
+
 extern crate termion;       // for colors, style
 use termion::{color, style};
 
-use std::{env, io, str::Split};
+use std::{env, io, process, str::Split};
 
 
 fn print_prompt() {
@@ -33,6 +36,23 @@ fn get_input() -> String {
 
 
 fn main() {
+
+    // TODO make this prettier
+    // Read args and set filename
+    let args: Vec<String> = env::args().collect();
+    if args.len() == 1 {
+        println!("Please specify a filename");
+        process::exit(1);
+    }
+    // Reading file into buffer
+    let filename = args[1].clone();
+    let buffer = static_info::load_file(filename);
+
+    // Parsing file as an object
+    // Reference to the file_object is further passed to functions
+    let file_object = static_info::parse_file(&buffer);
+
+
     let mut running: bool = true;
 
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
@@ -70,7 +90,7 @@ fn main() {
                         println!("list break"); /* list_break(); */ 
                     }
                     else if arg == "lf" {
-                        println!("list func"); /* list_func(); */ 
+                        static_info::list_func(&file_object);
                     }
                     else if let Some(second) = spliterator.next() {
                         match second {
@@ -79,8 +99,7 @@ fn main() {
                                 /* list_break(); */
                             },
                             "func" => {
-                                println!("list func");
-                                /* list_func(); */
+                                static_info::list_func(&file_object);
                             }
                             _ => println!("Please choose between <break/func>")
                         }
