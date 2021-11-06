@@ -3,7 +3,7 @@ use std::fs;
 
 // Print information about an ELF binary from it's header
 // Header is parsed so the output is more verbose
-fn header_info() -> error::Result<()> {
+pub fn header_info() -> error::Result<()> {
     /* TODO:
         - integrade into main function (add command: info/readelf)
         - change how the file is loaded (pass 'something' to the function?)
