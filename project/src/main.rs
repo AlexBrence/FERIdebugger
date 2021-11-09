@@ -9,7 +9,6 @@ extern crate termion;       // for colors, style
 extern crate libc;
 use program::Program;
 use termion::{color, style};
-use goblin::{Object};
 use std;
 use std::{env, io, process, str::Split, ffi::CString};
 
@@ -75,8 +74,6 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
     else {
         println!("debugger attaching to pid {}", program_pid);
         program.wait();
-    }
-}
 
 
 fn main() {
