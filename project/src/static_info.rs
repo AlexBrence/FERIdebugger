@@ -7,28 +7,19 @@
 use goblin::{error, Object, elf::sym};
 use std::path::Path;
 use std::fs;
-use termion::{color, style};
 
 
 pub fn list_func(obj: &Object) {
     // Match executable type and list functions accordingly to the format
     match obj {
         // Linux
-        // Print names and addresses from .symtab section
+        // TODO add memory address for each function
         Object::Elf(elf) => { 
-            // List all symbols that are functions
-            for section in &elf.syms {
-                if section.is_function() {
-                    // Print the function address and name
-                    // section.st_value corresponds to string offset from elf.strtab
-
-                    // Pad zeroes to match 32bit or 64bit address length
-                    if elf.is_64 {
-                        println!("{}{:#018x}  {}{}", color::Fg(color::Blue), section.st_value,
-                            color::Fg(color::Red), elf.strtab.get_at(section.st_name).unwrap());
-                    } else {
-                        println!("{}{:#010x}  {}{}", color::Fg(color::Blue), section.st_value,
-                            color::Fg(color::Red), elf.strtab.get_at(section.st_name).unwrap());
+            for label in elf.strtab.to_vec() {
+                for l in label {
+                    if !l.is_empty() && !l.starts_with("_") && !l.ends_with(".c") 
+                        && l != "deregister_tm_clones" && l != "completed.8060" {
+                        println!("{}", l);
                     }
                 }
             }
