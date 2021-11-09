@@ -1,10 +1,15 @@
 mod static_info;
 mod dynamic_info;
+mod ptrace;
+mod program;
 
 extern crate termion;       // for colors, style
+extern crate libc;
+use program::Program;
 use termion::{color, style};
+use std;
+use std::{env, io, process, str::Split, ffi::CString};
 
-use std::{env, io, process, str::Split};
 
 
 fn print_prompt() {
@@ -23,7 +28,7 @@ fn print_prompt() {
 
 fn get_input() -> String {
     /*
-     * Get's user input
+     * Gets user input
      */
 
     let mut user_input = String::new();
@@ -34,6 +39,52 @@ fn get_input() -> String {
     return user_input.trim().to_string();
 }
 
+fn run_config(program_exec: &String, program_args: Vec<&str>) {
+    let program_pid: libc::pid_t;
+    let mut args: Vec<*const i8> = Vec::new();
+    let mut args_exist: bool = false;
+
+    // Check if args for executable were given
+    if program_args.len() > 0 {
+        args_exist = true;
+
+        for i in 0..program_args.len() {
+            let cs = CString::new(program_args[i]).unwrap();
+            let cv: Vec<u8> = cs.into_bytes_with_nul();
+            let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
+            // args.push(tmp.as_mut_ptr());
+            let cptr: *mut i8 = tmp.as_mut_ptr();
+            println!("cptr ... {:?}", &cptr);
+        }
+        println!("Args ... {}", args.len());
+
+        // for arg in program_args {
+        //     let cs = CString::new(arg).unwrap();
+        //     let cv: Vec<u8> = cs.into_bytes_with_nul();
+        //     let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
+        //     args.push(tmp.as_mut_ptr());
+        // }
+    }
+
+    unsafe {
+        program_pid = libc::fork();
+    }
+
+    // Create new instance and and arguments if exist
+    let mut program: Program = Program::new(program_pid, 
+                                            program_exec);
+    if args_exist { program.add_args(args); }
+
+    if program_pid == 0 {
+        program.run();
+        println!("Running {}", program_exec);
+        return;
+    }
+    else {
+        println!("debugger attaching to pid {}", program_pid);
+        program.wait();
+    }
+}
 
 fn main() {
 
@@ -46,12 +97,11 @@ fn main() {
     }
     // Reading file into buffer
     let filename = args[1].clone();
-    let buffer = static_info::load_file(filename);
+    let buffer = static_info::load_file(filename.clone());
 
     // Parsing file as an object
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
-
 
     let mut running: bool = true;
 
@@ -71,23 +121,23 @@ fn main() {
                         while let Some(program_args) = spliterator.next() {
                             vec_program_args.push(program_args);
                         }
-                        println!("arguments were: {:?}", vec_program_args);
-                        /* run_program_with_arguments(vec_program_args); */
+
+                        run_config(&filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
                         if let Some(num) = spliterator.next() {
-                            println!("del break {}", num); // del_break_single(num);
+                            /* del_break_single(num); */
                         }
                         else {
-                            /* delete_break_all(); */    // Tu me popravite če ni tak mišljeno
+                            /* delete_break_all(); */
                         }
                     }
                     else { println!("Specify what to delete: del <break> [n]"); }
                 },
                 "list" | "lb" | "lf" => {
                     if arg == "lb" {
-                        println!("list break"); /* list_break(); */ 
+                        /* list_break(); */ 
                     }
                     else if arg == "lf" {
                         static_info::list_func(&file_object);
@@ -95,7 +145,6 @@ fn main() {
                     else if let Some(second) = spliterator.next() {
                         match second {
                             "break" => {
-                                println!("list break");
                                 /* list_break(); */
                             },
                             "func" => {
@@ -124,11 +173,6 @@ fn main() {
                         println!("not enugh arguments type 'help' for help")
                     }
                 },
-                /*"del break" | "db" => {
-                    if let Some(num) = spliterator.next(){
-                        println!("delete breakpoint at: {}", num); 
-                    }
-                },*/
                 "on" => {
                     if let Some(num) = spliterator.next(){
                         println!("enable breakpoint on: {}", num);
@@ -176,22 +220,14 @@ fn main() {
                     }
                 },
                 "stack" => println!("dump memory from current stack"),
-                "quit" | "q" => running = false,
+                "quit" | "q" => { 
+                    running = false;
+                },
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
             },
             None => todo!(),
-        // let option = splitted[0]; // First one is option, others are arguments
-        //
-        // match option {
-        //     "help" | "h" => print_help(),
-        //     "list" | "lf" => if splitted.len() > 1 && splitted[1] == "func" {
-        //                         println!("lf was called"); /* list_functions(); */ 
-        //                     },
-        //     "quit" | "q" => running = false,
-        //     _ => println!("This command does not exist. Type 'help' for commands and functions.")
-        // }
-        //println!();
         }
+        println!();
     }
 }
 
