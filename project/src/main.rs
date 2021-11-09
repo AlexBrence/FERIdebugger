@@ -74,7 +74,8 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
     else {
         println!("debugger attaching to pid {}", program_pid);
         program.wait();
-
+    }
+}
 
 fn main() {
 
