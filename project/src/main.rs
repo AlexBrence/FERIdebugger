@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 mod static_info;
 mod dynamic_info;
 mod ptrace;
@@ -10,7 +12,6 @@ use termion::{color, style};
 use goblin::{Object};
 use std;
 use std::{env, io, process, str::Split, ffi::CString};
-
 
 
 fn print_prompt() {
@@ -53,18 +54,8 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
             let cs = CString::new(program_args[i]).unwrap();
             let cv: Vec<u8> = cs.into_bytes_with_nul();
             let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
-            // args.push(tmp.as_mut_ptr());
-            let cptr: *mut i8 = tmp.as_mut_ptr();
-            println!("cptr ... {:?}", &cptr);
+            args.push(tmp.as_mut_ptr());
         }
-        println!("Args ... {}", args.len());
-
-        // for arg in program_args {
-        //     let cs = CString::new(arg).unwrap();
-        //     let cv: Vec<u8> = cs.into_bytes_with_nul();
-        //     let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
-        //     args.push(tmp.as_mut_ptr());
-        // }
     }
 
     unsafe {

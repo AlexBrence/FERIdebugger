@@ -38,6 +38,7 @@ impl Program {
 
             // Prepare the argv
             self.args.push(cprogram);
+            self.args.push(std::ptr::null());
 
             // Prepare the environment
             // let mut vec_environment: Vec<*const i8> = Vec::new();
