@@ -79,131 +79,6 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
 }
 
 
-fn parse_command(input: &String, program_exec: &String, file_object: &Object) -> bool {
-    let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
-
-    match spliterator.next() {
-        Some(arg) => match arg {
-            "help" | "h" => print_help(),
-            "run" | "r" => {
-                    let mut vec_program_args: Vec<&str> = Vec::new();
-                    while let Some(program_args) = spliterator.next() {
-                        vec_program_args.push(program_args);
-                    }
-                    println!("arguments were: {:?}", vec_program_args);
-                    run_config(program_exec, vec_program_args);
-            },
-            "del" => {
-                if let Some("break") = spliterator.next() {
-                    if let Some(num) = spliterator.next() {
-                        println!("del break {}", num); // del_break_single(num);
-                    }
-                    else {
-                        /* delete_break_all(); */    // Tu me popravite če ni tak mišljeno
-                    }
-                }
-                else { println!("Specify what to delete: del <break> [n]"); }
-            },
-            "list" | "lb" | "lf" => {
-                if arg == "lb" {
-                    println!("list break"); /* list_break(); */ 
-                }
-                else if arg == "lf" {
-                    static_info::list_func(&file_object);
-                }
-                else if let Some(second) = spliterator.next() {
-                    match second {
-                        "break" => {
-                            println!("list break");
-                            /* list_break(); */
-                        },
-                        "func" => {
-                            static_info::list_func(&file_object);
-                        }
-                        _ => println!("Please choose between <break/func>")
-                    }
-                }
-                else { println!("Specify what to list: list <break/func>"); }
-            },
-            "continue" | "c" => println!("continue"),
-            "step" | "s" => println!("step"),
-            "disas" | "d" => {
-                if let Some(func) = spliterator.next(){
-                    println!("dissasemble {} ", func.to_string());
-                }
-                else{
-                    println!("not enugh arguments type 'help' for help")
-                }
-            },
-            "break" | "b" => {
-                if let Some(address) = spliterator.next(){
-                    println!("break at adress {} ", address);
-                }
-                else{
-                    println!("not enugh arguments type 'help' for help")
-                }
-            },
-            /*"del break" | "db" => {
-                if let Some(num) = spliterator.next(){
-                    println!("delete breakpoint at: {}", num); 
-                }
-            },*/
-            "on" => {
-                if let Some(num) = spliterator.next(){
-                    println!("enable breakpoint on: {}", num);
-                }
-                else{
-                    println!("not enugh arguments type 'help' for help")
-                }
-            },
-            "off" => {
-                if let Some(num) =spliterator.next(){
-                    println!("disable breakpoint on: {}", num);
-                }
-                else{
-                    println!("not enugh arguments type 'help' for help")
-                }
-            },
-            "reg" => {
-                if let Some(name) = spliterator.next(){
-                    println!("values in all registers");
-                }
-                else{
-                    println!("not enugh arguments type 'help' for help")
-                }
-            },
-            "set" => {
-                if let Some("reg")= spliterator.next(){
-                    if let Some(name) = spliterator.next(){
-                        if let Some(num) = spliterator.next(){
-                            println!("set register {} to {}", name, num);
-                        }
-                        else{
-                            println!("not enugh arguments type 'help' for help")
-                        }
-                    }
-                }
-            },
-            "mem" => {
-                if let Some(name) = spliterator.next(){
-                    if let Some(byte_num) = spliterator.next(){
-                        println!("dump {} bytes starting with {} ", byte_num, name);
-                    }
-                    else{
-                        println!("not enouhg argumets type 'help' ")
-                    }
-                }
-            },
-            "stack" => println!("dump memory from current stack"),
-            "quit" | "q" => { return false; }
-            _ => println!("This command does not exist. Type 'help' for commands and functions."),
-        },
-        None => todo!(),
-    }
-    return true;
-}
-
-
 fn main() {
 
     // TODO make this prettier
@@ -221,6 +96,7 @@ fn main() {
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
 
+
     let mut running: bool = true;
 
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
@@ -229,10 +105,124 @@ fn main() {
     while running {
         print_prompt();
         let input = get_input();
-        running = parse_command(&input, &filename, &file_object);
-        println!();
+        let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
+
+        match spliterator.next() {
+            Some(arg) => match arg {
+                "help" | "h" => print_help(),
+                "run" | "r" => {
+                        let mut vec_program_args: Vec<&str> = Vec::new();
+                        while let Some(program_args) = spliterator.next() {
+                            vec_program_args.push(program_args);
+                        }
+                        println!("arguments were: {:?}", vec_program_args);
+                        run_config(&filename, vec_program_args);
+                },
+                "del" => {
+                    if let Some("break") = spliterator.next() {
+                        if let Some(num) = spliterator.next() {
+                            println!("del break {}", num); // del_break_single(num);
+                        }
+                        else {
+                            /* delete_break_all(); */    // Tu me popravite če ni tak mišljeno
+                        }
+                    }
+                    else { println!("Specify what to delete: del <break> [n]"); }
+                },
+                "list" | "lb" | "lf" => {
+                    if arg == "lb" {
+                        println!("list break"); /* list_break(); */ 
+                    }
+                    else if arg == "lf" {
+                        static_info::list_func(&file_object);
+                    }
+                    else if let Some(second) = spliterator.next() {
+                        match second {
+                            "break" => {
+                                println!("list break");
+                                /* list_break(); */
+                            },
+                            "func" => {
+                                static_info::list_func(&file_object);
+                            }
+                            _ => println!("Please choose between <break/func>")
+                        }
+                    }
+                    else { println!("Specify what to list: list <break/func>"); }
+                },
+                "continue" | "c" => println!("continue"),
+                "step" | "s" => println!("step"),
+                "disas" | "d" => {
+                    if let Some(func) = spliterator.next(){
+                        println!("dissasemble {} ", func.to_string());
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
+                },
+                "break" | "b" => {
+                    if let Some(address) = spliterator.next(){
+                        println!("break at adress {} ", address);
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
+                },
+                "on" => {
+                    if let Some(num) = spliterator.next(){
+                        println!("enable breakpoint on: {}", num);
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
+                },
+                "off" => {
+                    if let Some(num) =spliterator.next(){
+                        println!("disable breakpoint on: {}", num);
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
+                },
+                "reg" => {
+                    if let Some(name) = spliterator.next(){
+                        println!("values in all registers");
+                    }
+                    else{
+                        println!("not enugh arguments type 'help' for help")
+                    }
+                },
+                "set" => {
+                    if let Some("reg")= spliterator.next(){
+                        if let Some(name) = spliterator.next(){
+                            if let Some(num) = spliterator.next(){
+                                println!("set register {} to {}", name, num);
+                            }
+                            else{
+                                println!("not enugh arguments type 'help' for help")
+                            }
+                        }
+                    }
+                },
+                "mem" => {
+                    if let Some(name) = spliterator.next(){
+                        if let Some(byte_num) = spliterator.next(){
+                            println!("dump {} bytes starting with {} ", byte_num, name);
+                        }
+                        else{
+                            println!("not enouhg argumets type 'help' ")
+                        }
+                    }
+                },
+                "stack" => println!("dump memory from current stack"),
+                "quit" | "q" => running = false,
+                _ => println!("This command does not exist. Type 'help' for commands and functions."),
+            },
+            None => todo!(),
+        }
     }
 }
+
 
 fn print_help() {
     let help_str: &str = "FERI debugger
