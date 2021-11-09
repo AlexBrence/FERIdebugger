@@ -1,9 +1,7 @@
 extern crate libc;
 use std;
 use std::ffi::{CString};
-
 use libc::c_int;
-
 use super::ptrace;
 
 
@@ -25,32 +23,32 @@ impl Program {
         }
     }
 
+    // Methods
     pub fn add_args(&mut self, program_args: Vec<*const i8>) {
         self.args = program_args;
     }
 
-    // Methods
     pub fn run(&mut self) {
         unsafe {
             // ptrace::trace_me();
 
-            // create a C String version of the target
+            // Create a CString version of the program
             let cprogram_str = CString::new((self.executable).clone()).unwrap();
             let cprogram = cprogram_str.as_ptr();
 
-            // prepare the argv
+            // Prepare the argv
             self.args.push(cprogram);
 
-            // prepare the environment
-            let mut vec_environment: Vec<*const i8> = Vec::new();
-            vec_environment.push(CString::new("HOME=~/Desktop").expect("vec_env_push").as_ptr());
-            vec_environment.push(std::ptr::null());
+            // Prepare the environment
+            // let mut vec_environment: Vec<*const i8> = Vec::new();
+            // vec_environment.push(CString::new("HOME=~/Desktop").expect("vec_env_push").as_ptr());
+            // vec_environment.push(std::ptr::null());
 
-            // start the executable
-            let ret = libc::execve(cprogram, self.args.as_ptr(), vec_environment.as_ptr());
+            // Start the executable
+            let ret = libc::execv(cprogram, self.args.as_ptr()/* , vec_environment.as_ptr() */);
             println!("Return was ............. {:?}", ret);
 
-            // oops, it failed to run
+            // Failed to run
             println!("[ERROR] Failed to run, exited with err {:?} and errno {}", ret, *libc::__errno_location());
         }
     }
