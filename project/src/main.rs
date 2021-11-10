@@ -4,6 +4,8 @@ mod static_info;
 mod dynamic_info;
 mod ptrace;
 mod program;
+mod header_info;
+mod process_info;
 
 extern crate termion;       // for colors, style
 extern crate libc;
@@ -15,7 +17,7 @@ use std::{env, io, process, str::Split, ffi::CString};
 
 fn print_prompt() {
     /*
-     * Creates nice looking hot and sexy prompt 
+     * Creates nice looking hot and sexy prompt
      */
 
     print!("{}{}(", color::Fg(color::Green), style::Bold);
@@ -76,7 +78,7 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
     }
 
     // Create new instance and and arguments if exist
-    let mut program: Program = Program::new(program_pid, 
+    let mut program: Program = Program::new(program_pid,
                                             program_exec);
     program.add_args(args_ptr);
 
@@ -146,7 +148,7 @@ fn main() {
                 },
                 "list" | "lb" | "lf" => {
                     if arg == "lb" {
-                        println!("list break"); /* list_break(); */ 
+                        println!("list break"); /* list_break(); */
                     }
                     else if arg == "lf" {
                         static_info::list_func(&file_object);
@@ -159,7 +161,7 @@ fn main() {
                             },
                             "func" => {
                                 static_info::list_func(&file_object);
-                            }
+                            },
                             _ => println!("Please choose between <break/func>")
                         }
                     }
@@ -172,7 +174,7 @@ fn main() {
                         println!("dissasemble {} ", func.to_string());
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help")
+                        println!("not enugh arguments type 'help' for help");
                     }
                 },
                 "break" | "b" => {
@@ -180,7 +182,7 @@ fn main() {
                         println!("break at adress {} ", address);
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help")
+                        println!("not enugh arguments type 'help' for help");
                     }
                 },
                 "on" => {
@@ -188,7 +190,7 @@ fn main() {
                         println!("enable breakpoint on: {}", num);
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help")
+                        println!("not enugh arguments type 'help' for help");
                     }
                 },
                 "off" => {
@@ -196,7 +198,7 @@ fn main() {
                         println!("disable breakpoint on: {}", num);
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help")
+                        println!("not enugh arguments type 'help' for help");
                     }
                 },
                 "reg" => {
@@ -204,7 +206,7 @@ fn main() {
                         println!("values in all registers");
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help")
+                        println!("not enugh arguments type 'help' for help");
                     }
                 },
                 "set" => {
@@ -214,7 +216,7 @@ fn main() {
                                 println!("set register {} to {}", name, num);
                             }
                             else{
-                                println!("not enugh arguments type 'help' for help")
+                                println!("not enugh arguments type 'help' for help");
                             }
                         }
                     }
@@ -230,6 +232,19 @@ fn main() {
                     }
                 },
                 "stack" => println!("dump memory from current stack"),
+                "info" => {
+                    if let Some(topic) = spliterator.next() {
+                        match topic {
+                            "header" => header_info::header_info(&buffer),
+                            // run_config needs to return the whole program object or the pid_t
+                            // "process" => process_info::process_info(pid),
+                            _ => println!("not enouhg argumets type 'help' "),
+                        }
+                    }
+                    else {
+                        println!("not enouhg argumets type 'help' ");
+                    }
+                },
                 "quit" | "q" => running = false,
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
             },
@@ -241,9 +256,9 @@ fn main() {
 
 fn print_help() {
     let help_str: &str = "FERI debugger
-        
+
 usage: fdb <input file>
-    
+
 optional arguments:
     -h                      display help
 
@@ -268,6 +283,8 @@ debugger commands:
 
     mem [address] [n]       dump memory, [n] bytes starting from [address]
     stack                   dump memory from current stack frame
+
+    info <header, process>  print information
 ";
 
     println!("{}\n", help_str);

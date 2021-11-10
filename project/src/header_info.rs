@@ -1,16 +1,11 @@
 use std::path::Path;
 use std::fs;
+use std::error;
 
 // Print information about an ELF binary from it's header
 // Header is parsed so the output is more verbose
-pub fn header_info() -> error::Result<()> {
-    /* TODO:
-        - integrade into main function (add command: info/readelf)
-        - change how the file is loaded (pass 'something' to the function?)
-    */
-    // let mut input_path = user_input();
-    let path = Path::new(&input_path);
-    let buffer = fs::read(path)?;
+pub fn header_info(buffer: &Vec<u8>) {
+    
     let head_obj = goblin::elf::Elf::parse_header(&buffer).unwrap();
 
     let magic = head_obj.e_ident;
@@ -71,5 +66,4 @@ pub fn header_info() -> error::Result<()> {
     Number of section headers:          {}
     Section header string table index:  {}",
     magic, arch, endianness, version, ABI, ABI_version, object_file_type, head_obj.e_version, head_obj.e_entry, head_obj.e_phoff, head_obj.e_shoff, head_obj.e_flags, head_obj.e_ehsize, head_obj.e_phentsize, head_obj.e_phnum, head_obj.e_shentsize, head_obj.e_shnum, head_obj.e_shstrndx);
-    Ok(())
 }
