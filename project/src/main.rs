@@ -42,20 +42,34 @@ fn get_input() -> String {
 
 fn run_config(program_exec: &String, program_args: Vec<&str>) {
     let program_pid: libc::pid_t;
-    let mut args: Vec<*const i8> = Vec::new();
+    let mut arg_values: Vec<i8> = Vec::new();
+    let mut args_ptr: Vec<*const i8> = Vec::new();
     let mut args_exist: bool = false;
 
-    // Check if args for executable were given
-    if program_args.len() > 0 {
-        args_exist = true;
+    // Turn args into i8 array separated by nullbytes
+    for i in 0..program_args.len() {
+        let cs = CString::new(program_args[i]).unwrap();
+        let cv: Vec<u8> = cs.into_bytes_with_nul();
+        let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
+        //println!("{:?}", tmp);
+        arg_values.append(&mut tmp);
+    }
+    //println!("{:?}", arg_values);
 
-        for i in 0..program_args.len() {
-            let cs = CString::new(program_args[i]).unwrap();
-            let cv: Vec<u8> = cs.into_bytes_with_nul();
-            let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
-            args.push(tmp.as_mut_ptr());
+    // Put pointers for arguments in arts_ptr
+    let mut arg_first_char: bool = true;
+    println!("arg_values length: {}", arg_values.len());
+    for a in &arg_values {
+        if arg_first_char {
+            args_ptr.push(a);
+            arg_first_char = false;
+        }
+        if *a == 0 {
+            arg_first_char = true;
         }
     }
+    // Terminate reading more arguments (argv stops here)
+    args_ptr.push(std::ptr::null());
 
     unsafe {
         program_pid = libc::fork();
@@ -64,7 +78,7 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
     // Create new instance and and arguments if exist
     let mut program: Program = Program::new(program_pid, 
                                             program_exec);
-    if args_exist { program.add_args(args); }
+    program.add_args(args_ptr);
 
     if program_pid == 0 {
         program.run();
@@ -110,6 +124,9 @@ fn main() {
                 "help" | "h" => print_help(),
                 "run" | "r" => {
                         let mut vec_program_args: Vec<&str> = Vec::new();
+                        // Add filename to argv[0]
+                        let fname = &filename.to_string();
+                        vec_program_args.push(fname);
                         while let Some(program_args) = spliterator.next() {
                             vec_program_args.push(program_args);
                         }
