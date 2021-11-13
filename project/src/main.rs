@@ -9,6 +9,7 @@ mod process_info;
 
 extern crate termion;       // for colors, style
 extern crate libc;
+use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG};
 use program::Program;
 use termion::{color, style};
 use std;
@@ -53,14 +54,11 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
         let cs = CString::new(program_args[i]).unwrap();
         let cv: Vec<u8> = cs.into_bytes_with_nul();
         let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
-        //println!("{:?}", tmp);
         arg_values.append(&mut tmp);
     }
-    //println!("{:?}", arg_values);
 
     // Put pointers for arguments in arts_ptr
     let mut arg_first_char: bool = true;
-    println!("arg_values length: {}", arg_values.len());
     for a in &arg_values {
         if arg_first_char {
             args_ptr.push(a);
@@ -82,14 +80,27 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
                                             program_exec);
     program.add_args(args_ptr);
 
-    if program_pid == 0 {
-        program.run();
+    if program_pid < 0 {
+        panic!("Fork failed");
+    }
+    else if program_pid == 0 {  // if child
         println!("Running {}", program_exec);
+        program.run();
         return;
     }
     else {
         println!("debugger attaching to pid {}", program_pid);
-        program.wait();
+        let status: i32 = program.wait();
+
+        // Check the exit code
+        if WIFEXITED(status) {
+            let x: i32 = WEXITSTATUS(status);
+            println!("Program exited with code: {}", x);
+        }
+        // Or if abnormal exit e.g. segfault
+        if WIFSIGNALED(status) {
+            println!("Program ended with kill: {}", WTERMSIG(status));
+        }
     }
 }
 
@@ -109,7 +120,6 @@ fn main() {
     // Parsing file as an object
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
-
 
     let mut running: bool = true;
 
@@ -132,7 +142,6 @@ fn main() {
                         while let Some(program_args) = spliterator.next() {
                             vec_program_args.push(program_args);
                         }
-                        println!("arguments were: {:?}", vec_program_args);
                         run_config(&filename, vec_program_args);
                 },
                 "del" => {
@@ -174,7 +183,7 @@ fn main() {
                         println!("dissasemble {} ", func.to_string());
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help");
+                        println!("not enough arguments type 'help' for help");
                     }
                 },
                 "break" | "b" => {
@@ -182,7 +191,7 @@ fn main() {
                         println!("break at adress {} ", address);
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help");
+                        println!("not enough arguments type 'help' for help");
                     }
                 },
                 "on" => {
@@ -190,7 +199,7 @@ fn main() {
                         println!("enable breakpoint on: {}", num);
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help");
+                        println!("not enough arguments type 'help' for help");
                     }
                 },
                 "off" => {
@@ -198,7 +207,7 @@ fn main() {
                         println!("disable breakpoint on: {}", num);
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help");
+                        println!("not enough arguments type 'help' for help");
                     }
                 },
                 "reg" => {
@@ -206,7 +215,7 @@ fn main() {
                         println!("values in all registers");
                     }
                     else{
-                        println!("not enugh arguments type 'help' for help");
+                        println!("not enough arguments type 'help' for help");
                     }
                 },
                 "set" => {
@@ -216,7 +225,7 @@ fn main() {
                                 println!("set register {} to {}", name, num);
                             }
                             else{
-                                println!("not enugh arguments type 'help' for help");
+                                println!("not enough arguments type 'help' for help");
                             }
                         }
                     }
@@ -227,7 +236,7 @@ fn main() {
                             println!("dump {} bytes starting with {} ", byte_num, name);
                         }
                         else{
-                            println!("not enouhg argumets type 'help' ")
+                            println!("not enough arguments type 'help' ")
                         }
                     }
                 },
