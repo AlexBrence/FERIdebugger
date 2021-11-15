@@ -9,6 +9,7 @@ use std::path::Path;
 use std::fs;
 use std::collections::HashMap;
 use termion::{color, style};
+use capstone::prelude::*;
 
 pub fn list_func(obj: &Object) {
     let mut is64: bool = true;
@@ -17,6 +18,8 @@ pub fn list_func(obj: &Object) {
     // Sort entries in HashMap by address
     let mut sorted_func_table: Vec<_> = func_table.iter().collect();
     sorted_func_table.sort_by_key(|a| a.1);
+
+    println!();
 
     // 64bit address padding
     if is64 {
@@ -31,9 +34,10 @@ pub fn list_func(obj: &Object) {
                 color::Fg(color::Red), name);
         }
     }
+    println!();
 }
 
-pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>) {
+pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) {
     let mut is64: bool = true;
     let func_table = get_func_table(obj, &mut is64);
 
@@ -41,10 +45,35 @@ pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>) {
         Some((addr, size)) => {
             let start: usize = *addr as usize;
             let end: usize = (*addr + *size) as usize;
-            println!("{:?}", &buff[start..end]);
+            let asm_bytes = &buff[start..end];
+            
+            //TODO set base_addr dynamically
+            let base_addr: u64 = *addr;
+
+            // Interpret bytes with Capstone
+            let insns = cap_obj.disasm_all(asm_bytes, base_addr)
+                    .expect("Failed to disassemble");
+                println!("Showing {} instructions from {}\n", insns.len(), func_name);
+
+                // 64bit address padding
+                if is64 {
+                    for i in insns.as_ref() {
+                        println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), i.address(),
+                            color::Fg(color::White), i.mnemonic().unwrap(),
+                            color::Fg(color::Yellow), i.op_str().unwrap());
+                    }
+                // 32bit address padding
+                } else {
+                    for i in insns.as_ref() {
+                        println!("{}{:#010x}\t{}{}\t{}{}", color::Fg(color::Blue), i.address(),
+                            color::Fg(color::White), i.mnemonic().unwrap(),
+                            color::Fg(color::Yellow), i.op_str().unwrap());
+                    }
+                }
         },
         None => { println!("{}Error: Function not found.", color::Fg(color::Red)); }
     }
+    println!();
 }
 
 fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> {

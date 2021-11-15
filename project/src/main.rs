@@ -9,6 +9,9 @@ mod process_info;
 
 extern crate termion;       // for colors, style
 extern crate libc;
+extern crate capstone;
+
+use capstone::prelude::*;
 use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG};
 use program::Program;
 use termion::{color, style};
@@ -121,6 +124,15 @@ fn main() {
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
 
+    // Create Capstone object
+    let capstone_obj = Capstone::new()
+        .x86()
+        .mode(arch::x86::ArchMode::Mode64)
+        .syntax(arch::x86::ArchSyntax::Intel)
+        .detail(true)
+        .build()
+        .expect("Failed to create Capstone object");
+
     let mut running: bool = true;
 
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
@@ -180,7 +192,7 @@ fn main() {
                 "step" | "s" => println!("step"),
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next() {
-                        static_info::disassemble(func, &file_object, &buffer);
+                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
                         //println!("dissasemble {} ", func.to_string());
                     }
                     else{
