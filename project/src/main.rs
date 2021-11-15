@@ -179,8 +179,9 @@ fn main() {
                 "continue" | "c" => println!("continue"),
                 "step" | "s" => println!("step"),
                 "disas" | "d" => {
-                    if let Some(func) = spliterator.next(){
-                        println!("dissasemble {} ", func.to_string());
+                    if let Some(func) = spliterator.next() {
+                        static_info::disassemble(func, &file_object, &buffer);
+                        //println!("dissasemble {} ", func.to_string());
                     }
                     else{
                         println!("not enough arguments type 'help' for help");

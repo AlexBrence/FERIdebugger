@@ -4,32 +4,82 @@
  * - disassembling functions
  *
  */
-use goblin::{error, Object, elf::sym};
+use goblin::{error, Object, elf::sym, elf::Sym};
 use std::path::Path;
 use std::fs;
+use std::collections::HashMap;
 use termion::{color, style};
 
-
 pub fn list_func(obj: &Object) {
+    let mut is64: bool = true;
+    let func_table = get_func_table(obj, &mut is64);
+
+    // Sort entries in HashMap by address
+    let mut sorted_func_table: Vec<_> = func_table.iter().collect();
+    sorted_func_table.sort_by_key(|a| a.1);
+
+    // 64bit address padding
+    if is64 {
+        for (name, (addr, size)) in sorted_func_table.iter() {
+            println!("{}{:#018x}  {}{}", color::Fg(color::Blue), addr,
+                color::Fg(color::Red), name);
+        }
+    // 32bit address padding
+    } else {
+        for (name, (addr, size)) in sorted_func_table.iter() {
+            println!("{}{:#010x}  {}{}", color::Fg(color::Blue), addr,
+                color::Fg(color::Red), name);
+        }
+    }
+}
+
+pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>) {
+    let mut is64: bool = true;
+    let func_table = get_func_table(obj, &mut is64);
+
+    match func_table.get(func_name) {
+        Some((addr, size)) => {
+            let start: usize = *addr as usize;
+            let end: usize = (*addr + *size) as usize;
+            println!("{:?}", &buff[start..end]);
+        },
+        None => { println!("{}Error: Function not found.", color::Fg(color::Red)); }
+    }
+}
+
+fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> {
+    let mut func_table: HashMap<String, (u64, u64)> = HashMap::new();
     // Match executable type and list functions accordingly to the format
     match obj {
         // Linux
-        // Print names and addresses from .symtab section
+        // List names and addresses from .symtab section
         Object::Elf(elf) => { 
             // List all symbols that are functions
             for section in &elf.syms {
                 if section.is_function() {
-                    // Print the function address and name
+                    // Add function address and name to HashMap
+
+                    // TODO test while running
+                    // Return string ??? if file is stripped
+                    let func_name: String = match elf.strtab.get_at(section.st_name) {
+                        Some(name)  => name.to_string(),
+                        None        => format!("???"),
+                    };
+
                     // section.st_value corresponds to string offset from elf.strtab
+                    func_table.insert(func_name, (section.st_value, section.st_size));
 
                     // Pad zeroes to match 32bit or 64bit address length
+                    *is64 = elf.is_64;
+                    /*
                     if elf.is_64 {
-                        println!("{}{:#018x}  {}{}", color::Fg(color::Blue), section.st_value,
-                            color::Fg(color::Red), elf.strtab.get_at(section.st_name).unwrap());
+                        //println!("{}{:#018x}  {}{}", color::Fg(color::Blue), section.st_value,
+                        //    color::Fg(color::Red), elf.strtab.get_at(section.st_name).unwrap());
                     } else {
-                        println!("{}{:#010x}  {}{}", color::Fg(color::Blue), section.st_value,
-                            color::Fg(color::Red), elf.strtab.get_at(section.st_name).unwrap());
+                        //println!("{}{:#010x}  {}{}", color::Fg(color::Blue), section.st_value,
+                        //    color::Fg(color::Red), elf.strtab.get_at(section.st_name).unwrap());
                     }
+                    */
                 }
             }
         }
@@ -39,6 +89,7 @@ pub fn list_func(obj: &Object) {
         Object::Archive(archive)    => { println!("archive: {:#?}", &archive); }
         Object::Unknown(magic)      => { println!("unknown magic: {:#x}", magic); }
     }
+    func_table
 }
 
 //TODO these two need to be in a separate file for handling running the program

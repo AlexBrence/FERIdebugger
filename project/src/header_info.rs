@@ -27,11 +27,11 @@ pub fn header_info(buffer: &Vec<u8>) {
         _ => "error in format"
     };
 
-    let ABI_list = ["System V", "HP-UX", "NetBSD", "Linux", "GNU Hurd", "Solaris", "AIX", "IRIX", "FreeBSD", "Tru64", "Novell Modesto", "OpenBSD", "OpenVMS", "NonStop Kernel", "AROS", "Fenix OS", "CloudABI", "Stratus Technologies OpenVOS"];
+    let abi_list = ["System V", "HP-UX", "NetBSD", "Linux", "GNU Hurd", "Solaris", "AIX", "IRIX", "FreeBSD", "Tru64", "Novell Modesto", "OpenBSD", "OpenVMS", "NonStop Kernel", "AROS", "Fenix OS", "CloudABI", "Stratus Technologies OpenVOS"];
 
-    let ABI = ABI_list[usize::from(head_obj.e_ident[7])];
+    let abi = abi_list[usize::from(head_obj.e_ident[7])];
 
-    let ABI_version = head_obj.e_ident[8];
+    let abi_version = head_obj.e_ident[8];
 
     let object_file_type = match head_obj.e_type {
         0 => "NONE (No file type)",
@@ -65,5 +65,5 @@ pub fn header_info(buffer: &Vec<u8>) {
     Size of section headers:            {} (bytes)
     Number of section headers:          {}
     Section header string table index:  {}",
-    magic, arch, endianness, version, ABI, ABI_version, object_file_type, head_obj.e_version, head_obj.e_entry, head_obj.e_phoff, head_obj.e_shoff, head_obj.e_flags, head_obj.e_ehsize, head_obj.e_phentsize, head_obj.e_phnum, head_obj.e_shentsize, head_obj.e_shnum, head_obj.e_shstrndx);
+    magic, arch, endianness, version, abi, abi_version, object_file_type, head_obj.e_version, head_obj.e_entry, head_obj.e_phoff, head_obj.e_shoff, head_obj.e_flags, head_obj.e_ehsize, head_obj.e_phentsize, head_obj.e_phnum, head_obj.e_shentsize, head_obj.e_shnum, head_obj.e_shstrndx);
 }
