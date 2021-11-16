@@ -15,6 +15,8 @@ use capstone::prelude::*;
 use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG};
 use program::Program;
 use termion::{color, style};
+use termion::clear::All;
+use termion::cursor::Goto;
 use std;
 use std::{env, io, process, str::Split, ffi::CString};
 
@@ -268,6 +270,10 @@ fn main() {
                     }
                 },
                 "quit" | "q" => running = false,
+                "clear" =>{
+                    println!("{}",termion::clear::All);
+                    print!("{}",termion::cursor::Goto(1,1));
+                    },
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
             },
             None => todo!(),
@@ -307,6 +313,7 @@ debugger commands:
     stack                   dump memory from current stack frame
 
     info <header, process>  print information
+    clear                   clears terminal
 ";
 
     println!("{}\n", help_str);
