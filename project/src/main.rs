@@ -6,6 +6,7 @@ mod ptrace;
 mod program;
 mod header_info;
 mod process_info;
+mod terminal;
 
 extern crate termion;       // for colors, style
 extern crate libc;
@@ -20,19 +21,6 @@ use termion::cursor::Goto;
 use std;
 use std::{env, io, process, str::Split, ffi::CString};
 
-
-fn print_prompt() {
-    /*
-     * Creates nice looking hot and sexy prompt
-     */
-
-    print!("{}{}(", color::Fg(color::Green), style::Bold);
-    print!("{}fdb", style::Reset);
-    print!("{}{}) {}", color::Fg(color::Green), style::Bold, style::Reset);
-
-    io::Write::flush(&mut io::stdout())
-        .expect("[ERROR] flush failed");
-}
 
 
 fn get_input() -> String {
@@ -141,7 +129,8 @@ fn main() {
 
     // Main loop
     while running {
-        print_prompt();
+        terminal::print_prompt();
+        //terminal::key_commands();
         let input = get_input();
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
