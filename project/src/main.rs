@@ -6,6 +6,7 @@ mod ptrace;
 mod program;
 mod header_info;
 mod process_info;
+mod terminal;
 
 extern crate termion;       // for colors, style
 extern crate libc;
@@ -19,30 +20,7 @@ use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt
           fmt};
 
 
-fn print_prompt() {
-    /*
-     * Creates nice looking hot and sexy prompt
-     */
-
-    // print!("{}{}(", );
-    print!("{}╭─({}fdb", color::Fg(color::Green), style::Reset);
-    io::Write::flush(&mut io::stdout())
-        .expect("[ERROR] flush failed");
-
-    println!("{})", color::Fg(color::Green));
-
-    print!("╰─ > {}", style::Reset);
-    io::Write::flush(&mut io::stdout())
-        .expect("[ERROR] flush failed");
-
-}
-
-
 fn get_input() -> String {
-    /*
-     * Gets user input
-     */
-
     let mut user_input = String::new();
     io::stdin()
         .read_line(&mut user_input)
@@ -50,7 +28,6 @@ fn get_input() -> String {
 
     return user_input.trim().to_string();
 }
-
 
 
 fn check_for_bash_command(input: &String) -> Option<String> {
@@ -225,10 +202,9 @@ fn main() {
 
     // Main loop
     while running {
-        // print_prompt();
-        // let input = get_input();
         terminal::print_prompt();
         let input = terminal::key_commands(&mut prev_comms,&mut comm_counter);
+        println!("");
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
         // Filter out bash commands if they exist
