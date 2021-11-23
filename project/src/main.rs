@@ -218,13 +218,18 @@ fn main() {
     let file_object = static_info::parse_file(&buffer);
 
     let mut running: bool = true;
+    let mut prev_comms: Vec<String> = Vec::new();
 
+    let mut comm_counter: usize = 0;
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
 
     // Main loop
     while running {
-        print_prompt();
-        let input = get_input();
+        // print_prompt();
+        // let input = get_input();
+        terminal::print_prompt();
+        let input = terminal::key_commands(&mut prev_comms,&mut comm_counter);
+        let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
         // Filter out bash commands if they exist
         let mut bash_command: String = String::new();
