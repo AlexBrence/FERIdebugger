@@ -36,7 +36,7 @@ fn get_input() -> String {
     return user_input.trim().to_string();
 }
 
-fn run_config(program_exec: &String, program_args: Vec<&str>) {
+fn run_config(program_exec: &String, program_args: Vec<&str>) -> Program {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -79,7 +79,7 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
     else if program_pid == 0 {  // if child
         println!("Running {}", program_exec);
         program.run();
-        return;
+        // return;
     }
     else {
         println!("debugger attaching to pid {}", program_pid);
@@ -95,6 +95,8 @@ fn run_config(program_exec: &String, program_args: Vec<&str>) {
             println!("Program ended with kill: {}", WTERMSIG(status));
         }
     }
+
+    return program;
 }
 
 fn main() {
@@ -113,6 +115,12 @@ fn main() {
     // Parsing file as an object
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
+
+    // Program struct needed for breakpoints and process information
+    // Since the variable needs to be initialized we feed it random data
+    // Else, the whole main loop should be rewritten
+    let mut program: Program = Program::new(1234, &"".to_string());
+    // let mut program: Program = Program::new();   // THIS WOULD BE OPTIMAL
 
     // Create Capstone object
     let capstone_obj = Capstone::new()
@@ -146,7 +154,7 @@ fn main() {
                         while let Some(program_args) = spliterator.next() {
                             vec_program_args.push(program_args);
                         }
-                        run_config(&filename, vec_program_args);
+                        program = run_config(&filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -161,7 +169,7 @@ fn main() {
                 },
                 "list" | "lb" | "lf" => {
                     if arg == "lb" {
-                        println!("list break"); /* list_break(); */
+                        program.list_breakpoints();
                     }
                     else if arg == "lf" {
                         static_info::list_func(&file_object);
@@ -169,8 +177,7 @@ fn main() {
                     else if let Some(second) = spliterator.next() {
                         match second {
                             "break" => {
-                                println!("list break");
-                                /* list_break(); */
+                                program.list_breakpoints();
                             },
                             "func" => {
                                 static_info::list_func(&file_object);
@@ -193,7 +200,9 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        println!("break at adress {} ", address);
+                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
+                        program.set_breakpoint(addr);
+                        println!("Breakpoint set at 0x{:016x}!", addr);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
