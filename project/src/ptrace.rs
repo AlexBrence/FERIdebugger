@@ -4,6 +4,7 @@ extern crate libc;
 pub fn trace_me() {
     unsafe {
         libc::ptrace(libc::PTRACE_TRACEME, 0, 0, 0);
+        libc::personality(libc::ADDR_NO_RANDOMIZE as u64);
     }
 }
 

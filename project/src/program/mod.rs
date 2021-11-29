@@ -43,7 +43,7 @@ impl Program {
 
     pub fn run(&mut self) {
         unsafe {
-            // ptrace::trace_me();
+            ptrace::trace_me();
 
             // Create a CString version of the program
             let cprogram_str = CString::new((self.executable).clone()).unwrap();
