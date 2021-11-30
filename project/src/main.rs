@@ -166,11 +166,11 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
         // Check the exit code
         if WIFEXITED(status) {
             let x: i32 = WEXITSTATUS(status);
-            println!("Program exited with code: {}\n", x);
+            println!("\nProgram exited with code: {}\n", x);
         }
         // Or if abnormal exit e.g. segfault
         if WIFSIGNALED(status) {
-            println!("Program ended with signal: {}\n", WTERMSIG(status));
+            println!("\nProgram ended with signal: {}\n", WTERMSIG(status));
         }
     }
 }
