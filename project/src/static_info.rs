@@ -88,44 +88,72 @@ pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Caps
 
             let mut address: u64 = 0;
             let mut opcode: &str = "???";
-            let mut operands: &str = "";
+            let mut op: &str = "";
+            let mut operands: String = "".to_owned();   // modified, printable operands
 
             // Init colors
-            let mut color1: Box<dyn FgColor> = Box::new(color::Fg(color::White)); ;
-            let mut color2: Box<dyn FgColor> = Box::new(color::Fg(color::Yellow));;
+            let mut color1: Box<dyn FgColor> = Box::new(color::Fg(color::Yellow)); ;
+            let mut color2: Box<dyn FgColor> = Box::new(color::Fg(color::White));;
 
             for i in insns.as_ref() {
 
                 address = i.address();
                 opcode = i.mnemonic().unwrap();
-                operands = i.op_str().unwrap();
+                op = i.op_str().unwrap();
+                operands = op.to_owned();
 
                 // Format output based on opcode
                 match opcode {
-                    // Resolve addresses by call instruction
                     "call" => {
-                        let oper: u64 = i64::from_str_radix(operands.trim_start_matches("0x"), 16).unwrap() as u64;
+                        color1 = Box::new(color::Fg(color::Magenta));
+
+                        // Resolve address
+                        let oper: u64 = i64::from_str_radix(op.trim_start_matches("0x"), 16).unwrap() as u64;
+                        color2 = Box::new(color::Fg(color::Blue));
                         for (name, (addr, size)) in func_table.iter() {
                             if *addr + base_addr == oper {
-                                operands = name.as_str();
-                                color1 = Box::new(color::Fg(color::Magenta));
-                                color2 = Box::new(color::Fg(color::Red));
+                                operands = format!("{}<{}> {}0x{:x}", color::Fg(color::Red), name.as_str(),
+                                    color::Fg(color::Blue), *addr + base_addr);
                                 break;
                             }
                         }
+                    },
+
+                    "nop" | "leave" | "ret" => { 
+                        color1 = Box::new(color::Fg(color::Red)); 
+                        color2 = Box::new(color::Fg(color::Red));
+                    },
+
+                    "mov" | "lea" => {
+                        color1 = Box::new(color::Fg(color::Cyan));
+                        color2 = Box::new(color::Fg(color::White));
                     },
 
                     // Make all jumps green
                     "jmp" | "je" | "jz" | "jne" | "jnz" | "jg" | "jnle" | "jge" | "jnl" | "jl" 
                         | "jnge" | "jle" | "jng" | "je" | "jz" | "jne" | "jnz" | "ja" | "jnbe" 
                         | "jae" | "jnb" | "jb" | "jnae" | "jbe" | "jna"
-                        => { color1 = Box::new(color::Fg(color::Green)); },
+                        => { 
+                            color1 = Box::new(color::Fg(color::Green));
+                            color2 = Box::new(color::Fg(color::Green));
+                        },
 
                     _ => {
-                        color1 = Box::new(color::Fg(color::White));
+                        color1 = Box::new(color::Fg(color::Yellow));
                         color2 = Box::new(color::Fg(color::Yellow));
                     }
                 }
+
+                /*
+                // TODO Color operands?
+                match operands {
+                    "rax" | "rcx" | "rdx" | "rbx" | "rsp" | "rbp" | "rsi" | "rdi"
+                        | "rax" | "ecx" | "edx" | "ebx" | "esp" | "ebp" | "esi" | "edi"
+                        | "ax" | "cx" | "dx" | "bx" | "sp" | "bp" | "si" | "di"
+                        | "ah" | "al" | "ch" | "cl" | "dh" | "dl" | "bh" | "bl" | "spl" | "bpl" | "sil" | "dil"
+                        => {}
+                }
+                */
                 // 64bit address padding
                 if is64 {
                     println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
