@@ -9,7 +9,31 @@ use std::path::Path;
 use std::fs;
 use std::collections::HashMap;
 use termion::{color, style};
+use std::fmt;
 use capstone::prelude::*;
+
+// https://gitlab.redox-os.org/redox-os/termion/-/issues/123
+// Implementing traits to enable putting color in one variable
+trait FgColor {
+    fn write_to(&self, w: &mut dyn fmt::Write) -> fmt::Result;
+}
+
+impl<C> FgColor for color::Fg<C>
+where
+    C: color::Color,
+{
+    fn write_to(&self, w: &mut dyn fmt::Write) -> fmt::Result {
+        write!(w, "{}", self)
+    }
+}
+
+impl fmt::Display for dyn FgColor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
+        self.write_to(f)
+    }
+}
+// End of helper traits
+
 
 pub fn list_func(obj: &Object) {
     let mut is64: bool = true;
@@ -47,29 +71,73 @@ pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Caps
             let end: usize = (*addr + *size) as usize;
             let asm_bytes = &buff[start..end];
             
-            //TODO set base_addr dynamically
-            let base_addr: u64 = *addr;
+            //TODO set base_addr dynamically when ASLR on
+            // Set base_addr according to bitness
+            let mut base_addr: u64;
+            if is64 {
+                base_addr = 0x555555554000;
+            } else {
+                base_addr = 0x56555000;
+            }
+            let func_base_addr: u64 = base_addr + *addr;
 
             // Interpret bytes with Capstone
-            let insns = cap_obj.disasm_all(asm_bytes, base_addr)
+            let insns = cap_obj.disasm_all(asm_bytes, func_base_addr)
                     .expect("Failed to disassemble");
                 println!("Showing {} instructions from {}\n", insns.len(), func_name);
 
-                // 64bit address padding
-                if is64 {
-                    for i in insns.as_ref() {
-                        println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), i.address(),
-                            color::Fg(color::White), i.mnemonic().unwrap(),
-                            color::Fg(color::Yellow), i.op_str().unwrap());
-                    }
-                // 32bit address padding
-                } else {
-                    for i in insns.as_ref() {
-                        println!("{}{:#010x}\t{}{}\t{}{}", color::Fg(color::Blue), i.address(),
-                            color::Fg(color::White), i.mnemonic().unwrap(),
-                            color::Fg(color::Yellow), i.op_str().unwrap());
+            let mut address: u64 = 0;
+            let mut opcode: &str = "???";
+            let mut operands: &str = "";
+
+            // Init colors
+            let mut color1: Box<dyn FgColor> = Box::new(color::Fg(color::White)); ;
+            let mut color2: Box<dyn FgColor> = Box::new(color::Fg(color::Yellow));;
+
+            for i in insns.as_ref() {
+
+                address = i.address();
+                opcode = i.mnemonic().unwrap();
+                operands = i.op_str().unwrap();
+
+                // Format output based on opcode
+                match opcode {
+                    // Resolve addresses by call instruction
+                    "call" => {
+                        let oper: u64 = i64::from_str_radix(operands.trim_start_matches("0x"), 16).unwrap() as u64;
+                        for (name, (addr, size)) in func_table.iter() {
+                            if *addr + base_addr == oper {
+                                operands = name.as_str();
+                                color1 = Box::new(color::Fg(color::Magenta));
+                                color2 = Box::new(color::Fg(color::Red));
+                                break;
+                            }
+                        }
+                    },
+
+                    // Make all jumps green
+                    "jmp" | "je" | "jz" | "jne" | "jnz" | "jg" | "jnle" | "jge" | "jnl" | "jl" 
+                        | "jnge" | "jle" | "jng" | "je" | "jz" | "jne" | "jnz" | "ja" | "jnbe" 
+                        | "jae" | "jnb" | "jb" | "jnae" | "jbe" | "jna"
+                        => { color1 = Box::new(color::Fg(color::Green)); },
+
+                    _ => {
+                        color1 = Box::new(color::Fg(color::White));
+                        color2 = Box::new(color::Fg(color::Yellow));
                     }
                 }
+                // 64bit address padding
+                if is64 {
+                    println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
+                        color1, opcode,
+                        color2, operands);
+                // 32bit address padding
+                } else {
+                    println!("{}{:#010x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
+                        color1, opcode,
+                        color2, operands);
+                }
+            }
         },
         None => { println!("{}Error: Function not found.", color::Fg(color::Red)); }
     }
