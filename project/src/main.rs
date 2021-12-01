@@ -187,8 +187,8 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => println!("continue"),
-                "step" | "s" => println!("step"),
+                "continue" | "c" => program.resume(),
+                "step" | "s" => program.singlestep(),
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next() {
                         static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
@@ -200,6 +200,7 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
+                        // TODO: add so the address argument can have '0x' prefix
                         let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
                         program.set_breakpoint(addr);
                         println!("Breakpoint set at 0x{:016x}!", addr);
@@ -259,8 +260,7 @@ fn main() {
                     if let Some(topic) = spliterator.next() {
                         match topic {
                             "header" => header_info::header_info(&buffer),
-                            // run_config needs to return the whole program object or the pid_t
-                            // "process" => process_info::process_info(pid),
+                            "process" => process_info::process_info(program.pid),
                             _ => println!("not enouhg argumets type 'help' "),
                         }
                     }

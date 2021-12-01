@@ -37,3 +37,16 @@ pub fn write_user(pid: i32, user_struct: *const libc::user) {
         libc::ptrace(libc::PTRACE_SETREGS, pid, 0, user_struct);
     }
 }
+
+pub fn singlestep(target_pid: i32) {
+    unsafe {
+        libc::ptrace(libc::PTRACE_SINGLESTEP, target_pid, 0, 0);
+    }
+}
+
+// 'continue' is a keyword in rust and can't be used here
+pub fn resume(target_pid: i32) {
+    unsafe {
+        libc::ptrace(libc::PTRACE_CONT, target_pid, 0, 0);
+    }
+}

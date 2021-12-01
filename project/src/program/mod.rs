@@ -77,8 +77,8 @@ impl Program {
         let word: Result<u64, i32> = ptrace::peek_text(self.pid, loc);
         match word {
             Ok(w) => return ((w & (0xff << (8 * offset))) >> (8 * offset)) as u8,
-            Err(err) =>
-                panic!("Error: failed to read byte at {:016x} errno: {}", loc, err),
+            Err(e) =>
+                panic!("Error: failed to read byte at {:016x} errno: {}", loc, e),
         }
     }
 
@@ -128,6 +128,33 @@ impl Program {
         });
     }
 
+    pub fn delete_breakpoint(&mut self, location: u64) {
+
+        let loc: u64 = (location / 8) * 8;
+        let mut index = self.breakpoints.iter().position(|i| i.addr == loc);
+
+        match index {
+            Some(i) => {
+                let mut orig_byte: u8 = self.breakpoints[i].orig_byte;
+                self.poke_byte_at(loc, orig_byte);
+                self.breakpoints.remove(i);
+            },
+            None => println!("Breakpoint with that address doesn't exist."),
+        }
+
+        // match index {
+        //     Ok(i) => return i,
+        //     Err(e) => println!("Error: given address doesn't exist."),
+        // }
+
+        // for i in 0..self.breakpoints.len() {
+        //     if self.breakpoints[i].addr == loc {
+        //         orig_byte = self.breakpoints[i].orig_byte;
+        //         index = i;
+        //     }
+        // }
+    }
+
     pub fn handle_breakpoint(&mut self) {
         let mut user: libc::user = self.get_user_struct();
         let rip: u64 = user.regs.rip - 1;
@@ -145,5 +172,14 @@ impl Program {
         }
 
         panic!("oops");
+    }
+
+    pub fn singlestep(&mut self) {
+        ptrace::singlestep(self.pid);
+    }
+
+    // 'continue' is a keyword in rust and can't be used here
+    pub fn resume(&mut self) {
+        ptrace::resume(self.pid);
     }
 }
