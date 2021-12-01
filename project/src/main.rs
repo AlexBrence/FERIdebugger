@@ -125,14 +125,12 @@ fn main() {
 
     let mut running: bool = true;
     let mut prev_comms: Vec<String> = Vec::new();
-
-    let mut comm_counter: usize = 0;
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
 
     // Main loop
     while running {
         terminal::print_prompt();
-        let input = terminal::key_commands(&mut prev_comms,&mut comm_counter);
+        let input = terminal::key_commands(&mut prev_comms);
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
         match spliterator.next() {
