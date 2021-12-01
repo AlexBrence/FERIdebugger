@@ -15,10 +15,13 @@ use self::crossterm::Screen;
 
 pub fn print_prompt() {
 
-    print!("{}{}(", color::Fg(color::Green), style::Bold);
-    print!("{}fdb", style::Reset);
-    print!("{}{}) {}", color::Fg(color::Green), style::Bold, style::Reset);
+    print!("{}╭─({}fdb", color::Fg(color::Green), style::Reset);
+    io::Write::flush(&mut io::stdout())
+        .expect("[ERROR] flush failed");
 
+    println!("{})", color::Fg(color::Green));
+
+    print!("╰─ > {}", style::Reset);
     io::Write::flush(&mut io::stdout())
         .expect("[ERROR] flush failed");
 }
