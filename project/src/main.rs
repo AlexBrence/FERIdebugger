@@ -10,7 +10,11 @@ mod terminal;
 
 extern crate termion;       // for colors, style
 extern crate libc;
+extern crate capstone;
 
+use capstone::{arch, Capstone};
+use crate::capstone::arch::BuildsCapstoneSyntax;
+use crate::capstone::arch::BuildsCapstone;
 use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
@@ -18,6 +22,13 @@ use termion::{color, style};
 use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt, process,
           process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread, 
           fmt};
+
+
+enum Type {
+    CHAR,
+    DEC,
+    HEX,
+}
 
 
 fn get_input() -> String {
@@ -113,7 +124,8 @@ fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<Strin
 
 
 
-fn run_config(program_exec: &String, program_args: Vec<String>) {
+// fn run_config(program_exec: &String, program_args: Vec<String>) {
+fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -157,7 +169,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
     else if program_pid == 0 {  // if child
         println!("Running {}", program_exec);
         program.run();
-        return;
+        // return;
     }
     else {
         println!("debugger attaching to pid {}", program_pid);
@@ -173,6 +185,8 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
             println!("\nProgram ended with signal: {}\n", WTERMSIG(status));
         }
     }
+
+    return program;
 }
 
 
@@ -193,6 +207,21 @@ fn main() {
     // Parsing file as an object
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
+
+    // Program struct needed for breakpoints and process information
+    // Since the variable needs to be initialized we feed it random data
+    // Else, the whole main loop should be rewritten
+    let mut program: Program = Program::new(1234, &"".to_string());
+    // let mut program: Program = Program::new();   // THIS WOULD BE OPTIMAL
+
+    // Create Capstone object
+    let capstone_obj = Capstone::new()
+        .x86()
+        .mode(arch::x86::ArchMode::Mode64)
+        .syntax(arch::x86::ArchSyntax::Intel)
+        .detail(true)
+        .build()
+        .expect("Failed to create Capstone object");
 
     let mut running: bool = true;
     let mut prev_comms: Vec<String> = Vec::new();
@@ -251,7 +280,7 @@ fn main() {
                                 vec_program_args.push(program_args.to_string());
                             }
                         }
-                        run_config(&filename, vec_program_args);
+                        program = run_config(&filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -266,7 +295,7 @@ fn main() {
                 },
                 "list" | "lb" | "lf" => {
                     if arg == "lb" {
-                        println!("list break"); /* list_break(); */
+                        program.list_breakpoints();
                     }
                     else if arg == "lf" {
                         static_info::list_func(&file_object);
@@ -274,8 +303,7 @@ fn main() {
                     else if let Some(second) = spliterator.next() {
                         match second {
                             "break" => {
-                                println!("list break");
-                                /* list_break(); */
+                                program.list_breakpoints();
                             },
                             "func" => {
                                 static_info::list_func(&file_object);
@@ -297,7 +325,9 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        println!("break at adress {} ", address);
+                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
+                        program.set_breakpoint(addr);
+                        println!("Breakpoint set at 0x{:016x}!", addr);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
