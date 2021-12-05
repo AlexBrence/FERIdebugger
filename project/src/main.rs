@@ -220,6 +220,7 @@ fn main() {
     while running {
         terminal::print_prompt();
         let input = terminal::key_commands(&mut prev_comms);
+        println!();
  
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
