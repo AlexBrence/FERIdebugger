@@ -124,7 +124,7 @@ pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Caps
                         color2 = Box::new(color::Fg(color::Red));
                     },
 
-                    "mov" | "lea" => {
+                    "mov" | "movzx" | "lea" => {
                         color1 = Box::new(color::Fg(color::Cyan));
                         color2 = Box::new(color::Fg(color::White));
                     },
