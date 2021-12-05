@@ -10,7 +10,9 @@ mod terminal;
 
 extern crate termion;       // for colors, style
 extern crate libc;
+extern crate capstone;
 
+use capstone::prelude::*;
 use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
@@ -28,7 +30,6 @@ fn get_input() -> String {
 
     return user_input.trim().to_string();
 }
-
 
 fn check_for_bash_command(input: &String) -> Option<String> {
     let mut is_found: Option<usize>; 
@@ -113,7 +114,7 @@ fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<Strin
 
 
 
-fn run_config(program_exec: &String, program_args: Vec<String>) {
+fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -121,7 +122,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
 
     // Turn args into i8 array separated by nullbytes
     for i in 0..program_args.len() {
-        let cs = CString::new(program_args[i].as_str()).unwrap();
+        let cs = CString::new(program_args[i].clone()).unwrap();
         let cv: Vec<u8> = cs.into_bytes_with_nul();
         let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
         arg_values.append(&mut tmp);
@@ -157,7 +158,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
     else if program_pid == 0 {  // if child
         println!("Running {}", program_exec);
         program.run();
-        return;
+        // return;
     }
     else {
         println!("debugger attaching to pid {}", program_pid);
@@ -173,6 +174,8 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
             println!("Program ended with signal: {}\n", WTERMSIG(status));
         }
     }
+
+    return program;
 }
 
 
@@ -193,6 +196,21 @@ fn main() {
     // Parsing file as an object
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
+
+    // Program struct needed for breakpoints and process information
+    // Since the variable needs to be initialized we feed it random data
+    // Else, the whole main loop should be rewritten
+    let mut program: Program = Program::new(1234, &"".to_string());
+    // let mut program: Program = Program::new();   // THIS WOULD BE OPTIMAL
+
+    // Create Capstone object
+    let capstone_obj = Capstone::new()
+        .x86()
+        .mode(arch::x86::ArchMode::Mode64)
+        .syntax(arch::x86::ArchSyntax::Intel)
+        .detail(true)
+        .build()
+        .expect("Failed to create Capstone object");
 
     let mut running: bool = true;
     let mut prev_comms: Vec<String> = Vec::new();
@@ -249,7 +267,7 @@ fn main() {
                                 vec_program_args.push(program_args.to_string());
                             }
                         }
-                        run_config(&filename, vec_program_args);
+                        program = run_config(&filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -264,7 +282,7 @@ fn main() {
                 },
                 "list" | "lb" | "lf" => {
                     if arg == "lb" {
-                        println!("list break"); /* list_break(); */
+                        program.list_breakpoints();
                     }
                     else if arg == "lf" {
                         static_info::list_func(&file_object);
@@ -272,8 +290,7 @@ fn main() {
                     else if let Some(second) = spliterator.next() {
                         match second {
                             "break" => {
-                                println!("list break");
-                                /* list_break(); */
+                                program.list_breakpoints();
                             },
                             "func" => {
                                 static_info::list_func(&file_object);
@@ -283,11 +300,12 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => println!("continue"),
-                "step" | "s" => println!("step"),
+                "continue" | "c" => program.resume(),
+                "step" | "s" => program.singlestep(),
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
-                        println!("dissasemble {} ", func.to_string());
+                        //println!("dissasemble {} ", func.to_string());
+                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -295,7 +313,10 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        println!("break at adress {} ", address);
+                        // TODO: add so the address argument can have '0x' prefix
+                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
+                        program.set_breakpoint(addr);
+                        println!("Breakpoint set at 0x{:016x}!", addr);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -353,8 +374,7 @@ fn main() {
                     if let Some(topic) = spliterator.next() {
                         match topic {
                             "header" => header_info::header_info(&buffer),
-                            // run_config needs to return the whole program object or the pid_t
-                            // "process" => process_info::process_info(pid),
+                            "process" => process_info::process_info(program.pid),
                             _ => println!("not enouhg argumets type 'help' "),
                         }
                     }
