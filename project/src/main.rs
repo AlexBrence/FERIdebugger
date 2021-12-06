@@ -362,7 +362,9 @@ fn main() {
                         println!("not enough argumets type 'help' ");
                     }
                 },
-                "quit" | "q" => running = false,
+                "quit" | "q" => {
+                    running = false;
+                    println!("")},
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
             },
             None => todo!(),
