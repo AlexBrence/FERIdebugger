@@ -99,8 +99,7 @@ pub fn key_commands(prev_comms: &mut Vec<String>) -> String {
                 print!("{}",termion::clear::AfterCursor);
                 out_str.remove(out_str.len()-1);
                 let mut s:String=out_str.clone().into_iter().collect();
-                stdout.flush().unwrap();
-                
+                stdout.flush().unwrap();            
             },
             _=> {
             }
