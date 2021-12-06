@@ -7,6 +7,7 @@ mod program;
 mod header_info;
 mod process_info;
 mod terminal;
+mod conversion;
 
 extern crate termion;       // for colors, style
 extern crate libc;
@@ -23,12 +24,6 @@ use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt
           process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread, 
           fmt};
 
-
-enum Type {
-    CHAR,
-    DEC,
-    HEX,
-}
 
 
 fn get_input() -> String {
@@ -381,6 +376,49 @@ fn main() {
                 },
                 "stack" => println!("dump memory from current stack"),
                 "bt" => println!("List frames"), // use libc backtrace
+                "to" => {
+                    // Check if next parameter was given
+                    if let Some(conv_type) = spliterator.next() {
+                        let mut numbers: Vec<String> = Vec::new();
+
+                        let convert_to: conversion::Type = match conv_type {
+                            "hex" => conversion::Type::HEX,
+                            "dec" => conversion::Type::DEC,
+                            "char" => conversion::Type::CHAR,
+                            _ => {
+                                println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                                continue;
+                            }
+                        };
+
+                        // Get numbers
+                        while let Some(num) = spliterator.next() {
+                            if num.is_empty() {
+                                continue;
+                            }
+                            numbers.push(num.to_string());
+                        }
+
+                        // If none was given, give warning and omit
+                        if numbers.is_empty() {
+                            println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                            continue;
+                        }
+                        else {
+                            let result = match conversion::convert(convert_to, &mut numbers) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    println!("{}[ERROR]{} {}", color::Fg(color::Red), style::Reset, e);
+                                    continue
+                                }
+                            };
+                            println!("{}", result);
+                        }
+                    }
+                    else {
+                        println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                    }
+                }
                 "info" => {
                     if let Some(topic) = spliterator.next() {
                         match topic {
