@@ -18,7 +18,7 @@ use program::Program;
 use sysinfo::ProcessExt;
 use termion::{color, style};
 use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt, process,
-          process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread, 
+          process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread,
           fmt};
 
 
@@ -32,8 +32,8 @@ fn get_input() -> String {
 }
 
 fn check_for_bash_command(input: &String) -> Option<String> {
-    let mut is_found: Option<usize>; 
-    let mut is_found_reverse: Option<usize>; 
+    let mut is_found: Option<usize>;
+    let mut is_found_reverse: Option<usize>;
 
     // Check for $(<command>) format
     is_found = input.find("$(");
@@ -80,12 +80,12 @@ fn check_for_bash_command(input: &String) -> Option<String> {
     }
 }
 
-fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<String>, String> { 
+fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<String>, String> {
     // Get only args from original vector
     let mut args_vec: Vec<&str> = bash_command_vec[1..].to_vec();
     let mut output: Output;
 
-    // Execute 
+    // Execute
     let mut executed_command = Command::new(bash_command_vec[0])
                                         .args(args_vec.into_iter())
                                         .output();
@@ -114,7 +114,7 @@ fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<Strin
 
 
 
-fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
+fn run_config(program: &mut Program, program_exec: &String, program_args: Vec<String>) {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -148,8 +148,13 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
     }
 
     // Create new instance and and arguments if exist
-    let mut program: Program = Program::new(program_pid,
-                                            program_exec);
+    // let mut program: Program = Program::new(program_pid,
+    //                                         );
+
+    // "New" system of running the program
+    program.pid = program_pid;
+    program.executable = (*program_exec).clone();   // Change if .clone() ins't necessary
+
     program.add_args(args_ptr);
 
     if program_pid < 0 {
@@ -175,7 +180,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
         }
     }
 
-    return program;
+    // return program;
 }
 
 
@@ -221,7 +226,7 @@ fn main() {
         terminal::print_prompt();
         let input = terminal::key_commands(&mut prev_comms);
         println!();
- 
+
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
         // Filter out bash commands if they exist
@@ -239,7 +244,7 @@ fn main() {
             }
         };
 
-        let mut spliterator: Split<char> = input.as_str().split(' '); 
+        let mut spliterator: Split<char> = input.as_str().split(' ');
         match spliterator.next() {
             Some(arg) => match arg {
                 "help" | "h" => print_help(),
@@ -268,7 +273,8 @@ fn main() {
                                 vec_program_args.push(program_args.to_string());
                             }
                         }
-                        program = run_config(&filename, vec_program_args);
+                        // program = run_config(&filename, vec_program_args);
+                        run_config(&mut program, &filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -302,7 +308,12 @@ fn main() {
                     else { println!("Specify what to list: list <break/func>"); }
                 },
                 "continue" | "c" => program.resume(),
-                "step" | "s" => program.singlestep(),
+                "step" | "s" => {
+                    program.singlestep();
+                    program.wait();
+                    // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
+                    println!("0x{:x}", program.get_user_struct().regs.rip);
+                },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
                         //println!("dissasemble {} ", func.to_string());
