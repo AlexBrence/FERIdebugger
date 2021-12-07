@@ -183,6 +183,8 @@ fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> 
             for section in &elf.syms {
                 if section.is_function() {
                     // Add function address and name to HashMap
+                    let mut addr = section.st_value;
+                    let size = section.st_size;
 
                     // TODO test while running
                     // Return string ??? if file is stripped
@@ -190,9 +192,50 @@ fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> 
                         Some(name)  => name.to_string(),
                         None        => format!("???"),
                     };
+                    // Read offsets from /usr/lib/x86_64-linux-gnu/libc.so.6
+                    // if address is 0x0 its libc function
+
+                    // .got -> holds actual offsets
+                    // .plt -> stub that look up addresses in .got.plt
+                    // .got.plt -> target addresses (after they have been looked up)
+                    //
+                    // call   0x10a0 <printf@plt>
+                    //
+                    // printf@plt:
+                    //      endbr64 
+                    //      bnd jmp QWORD PTR [rip+0x2f1d]   # 0x3fc8 <printf@got.plt>
+                    //                                          |
+                    //                                        .rela.plt -> offset
+                    // $ readelf -r test/elf64/test_loop
+                    // PLAN:
+                    // if addr == 0 {
+                    //      disassemble function@plt
+                    //      take operands from first jmp
+                    //      return name that corresponds to address of operand in .rela.plt
+                    // }
+                    // .rela.plt -> .got.plt
+                    // elf.pltrelocs
+                    //
+                    // elf.dynrelas
+                    // elf.dynstrtab
+                    // elf.libraries -> "libc.so.6"
+
+                    // resolve functions in GOT
+                    if section.st_value == 0 {
+                        let strtab: Vec<&str> = elf.dynstrtab.to_vec().unwrap();
+
+                        for reloc in elf.pltrelocs.into_iter() {
+                            if func_name.starts_with(strtab[reloc.r_sym + 1]) {
+                                //println!("{:x} {}", reloc.r_offset, strtab[reloc.r_sym+1]);
+                                //println!("{:?}", elf.pltrelocs);
+                                addr = reloc.r_offset;
+                                break;
+                            }
+                        }
+                    }
 
                     // section.st_value corresponds to string offset from elf.strtab
-                    func_table.insert(func_name, (section.st_value, section.st_size));
+                    func_table.insert(func_name, (addr, size));
 
                     // Pad zeroes to match 32bit or 64bit address length
                     *is64 = elf.is_64;
