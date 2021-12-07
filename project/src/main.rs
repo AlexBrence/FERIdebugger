@@ -7,6 +7,7 @@ mod program;
 mod header_info;
 mod process_info;
 mod terminal;
+mod conversion;
 
 extern crate termion;       // for colors, style
 extern crate libc;
@@ -22,6 +23,7 @@ use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt
           fmt};
 
 
+
 fn get_input() -> String {
     let mut user_input = String::new();
     io::stdin()
@@ -30,6 +32,7 @@ fn get_input() -> String {
 
     return user_input.trim().to_string();
 }
+
 
 fn check_for_bash_command(input: &String) -> Option<String> {
     let mut is_found: Option<usize>;
@@ -172,11 +175,11 @@ fn run_config(program: &mut Program, program_exec: &String, program_args: Vec<St
         // Check the exit code
         if WIFEXITED(status) {
             let x: i32 = WEXITSTATUS(status);
-            println!("Program exited with code: {}\n", x);
+            println!("\nProgram exited with code: {}\n", x);
         }
         // Or if abnormal exit e.g. segfault
         if WIFSIGNALED(status) {
-            println!("Program ended with signal: {}\n", WTERMSIG(status));
+            println!("\nProgram ended with signal: {}\n", WTERMSIG(status));
         }
     }
 
@@ -440,6 +443,49 @@ fn main() {
                 },
                 "stack" => println!("dump memory from current stack"),
                 "bt" => println!("List frames"), // use libc backtrace
+                "to" => {
+                    // Check if next parameter was given
+                    if let Some(conv_type) = spliterator.next() {
+                        let mut numbers: Vec<String> = Vec::new();
+
+                        let convert_to: conversion::Type = match conv_type {
+                            "hex" => conversion::Type::HEX,
+                            "dec" => conversion::Type::DEC,
+                            "char" => conversion::Type::CHAR,
+                            _ => {
+                                println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                                continue;
+                            }
+                        };
+
+                        // Get numbers
+                        while let Some(num) = spliterator.next() {
+                            if num.is_empty() {
+                                continue;
+                            }
+                            numbers.push(num.to_string());
+                        }
+
+                        // If none was given, give warning and omit
+                        if numbers.is_empty() {
+                            println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                            continue;
+                        }
+                        else {
+                            let result = match conversion::convert(convert_to, &mut numbers) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    println!("{}[ERROR]{} {}", color::Fg(color::Red), style::Reset, e);
+                                    continue
+                                }
+                            };
+                            println!("{}", result);
+                        }
+                    }
+                    else {
+                        println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                    }
+                }
                 "info" => {
                     if let Some(topic) = spliterator.next() {
                         match topic {
