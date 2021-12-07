@@ -13,7 +13,7 @@ extern crate libc;
 extern crate capstone;
 
 use capstone::prelude::*;
-use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
+use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, WIFSTOPPED, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
 use termion::{color, style};
@@ -275,6 +275,7 @@ fn main() {
                         }
                         // program = run_config(&filename, vec_program_args);
                         run_config(&mut program, &filename, vec_program_args);
+                        program.remake_breakpoints();
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -321,7 +322,20 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => program.resume(),
+                "continue" | "c" => {
+                    program.resume();
+                    let status: libc::c_int = program.wait() as libc::c_int;
+                    unsafe {
+                        if WIFEXITED(status) {
+                            let x: i32 = WEXITSTATUS(status);
+                            println!("Program exited with code: {}\n", x);
+                        } else if WIFSTOPPED(status) {
+                            program.handle_breakpoint();
+                        } else {
+                            panic!("~strange things do be swimming in these waters~");
+                        }
+                    }
+                },
                 "step" | "s" => {
                     program.singlestep();
                     program.wait();

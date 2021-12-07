@@ -226,4 +226,13 @@ impl Program {
     pub fn resume(&mut self) {
         ptrace::resume(self.pid);
     }
+
+    pub fn remake_breakpoints(&mut self) {
+        for i in 0..self.breakpoints.len() {
+            if self.breakpoints[i].enabled {
+                let addr = self.breakpoints[i].addr;
+                self.poke_byte_at(addr, 0xCC);
+            }
+        }
+    }
 }
