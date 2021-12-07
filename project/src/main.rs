@@ -423,7 +423,17 @@ fn main() {
                     if let Some("reg")= spliterator.next(){
                         if let Some(name) = spliterator.next(){
                             if let Some(num) = spliterator.next(){
-                                println!("set register {} to {}", name, num);
+                                let value: u64 = match u64::from_str_radix(&num.trim_start_matches("0x"), 16) {
+                                    Ok(a) => a,
+                                    Err(f) => u64::MAX,
+                                };
+                                if value != u64::MAX {
+                                    program.set_reg(name, value);
+                                    println!("set register {} to {}", name, num);
+                                }
+                                else {
+                                    println!("Value must be a hex string or a register with that name doesn't exist");
+                                }
                             }
                             else{
                                 println!("not enough arguments type 'help' for help");

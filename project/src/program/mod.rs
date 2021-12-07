@@ -235,4 +235,41 @@ impl Program {
             }
         }
     }
+
+    // set registers
+    pub fn set_reg(&mut self, register: &str, value: u64) {
+        let mut user: libc::user = self.get_user_struct();
+        let mut regs = user.regs;
+
+        match register {
+            "rax" => regs.rax = value,
+            "rbx" => regs.rbx = value,
+            "rcx" => regs.rcx = value,
+            "rdx" => regs.rdx = value,
+            "r15" => regs.r15 = value,
+            "r14" => regs.r14 = value,
+            "r13" => regs.r13 = value,
+            "r12" => regs.r12 = value,
+            "r11" => regs.r11 = value,
+            "r10" => regs.r10 = value,
+            "r9" => regs.r9 = value,
+            "r8" => regs.r8 = value,
+            "rsp" => regs.rsp = value,
+            "rbp" => regs.rbp = value,
+            "rsi" => regs.rsi = value,
+            "rdi" => regs.rdi = value,
+            "rip" => regs.rip = value,
+            "eflags" => regs.eflags = value,
+            "cs" => regs.cs = value,
+            "ss" => regs.ss = value,
+            "ds" => regs.ds = value,
+            "es" => regs.es = value,
+            // ADD ERROR HANDLING
+            _ => {},
+        }
+
+        // save changes to registers
+        user.regs = regs;
+        self.write_user_struct(user);
+    }
 }
