@@ -13,15 +13,13 @@ extern crate termion;       // for colors, style
 extern crate libc;
 extern crate capstone;
 
-use capstone::{arch, Capstone};
-use crate::capstone::arch::BuildsCapstoneSyntax;
-use crate::capstone::arch::BuildsCapstone;
+use capstone::prelude::*;
 use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
 use termion::{color, style};
 use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt, process,
-          process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread, 
+          process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread,
           fmt};
 
 
@@ -37,8 +35,8 @@ fn get_input() -> String {
 
 
 fn check_for_bash_command(input: &String) -> Option<String> {
-    let mut is_found: Option<usize>; 
-    let mut is_found_reverse: Option<usize>; 
+    let mut is_found: Option<usize>;
+    let mut is_found_reverse: Option<usize>;
 
     // Check for $(<command>) format
     is_found = input.find("$(");
@@ -85,12 +83,12 @@ fn check_for_bash_command(input: &String) -> Option<String> {
     }
 }
 
-fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<String>, String> { 
+fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<String>, String> {
     // Get only args from original vector
     let mut args_vec: Vec<&str> = bash_command_vec[1..].to_vec();
     let mut output: Output;
 
-    // Execute 
+    // Execute
     let mut executed_command = Command::new(bash_command_vec[0])
                                         .args(args_vec.into_iter())
                                         .output();
@@ -119,8 +117,7 @@ fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<Strin
 
 
 
-// fn run_config(program_exec: &String, program_args: Vec<String>) {
-fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
+fn run_config(program: &mut Program, program_exec: &String, program_args: Vec<String>) {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -128,7 +125,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
 
     // Turn args into i8 array separated by nullbytes
     for i in 0..program_args.len() {
-        let cs = CString::new(program_args[i].as_str()).unwrap();
+        let cs = CString::new(program_args[i].clone()).unwrap();
         let cv: Vec<u8> = cs.into_bytes_with_nul();
         let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
         arg_values.append(&mut tmp);
@@ -154,8 +151,13 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
     }
 
     // Create new instance and and arguments if exist
-    let mut program: Program = Program::new(program_pid,
-                                            program_exec);
+    // let mut program: Program = Program::new(program_pid,
+    //                                         );
+
+    // "New" system of running the program
+    program.pid = program_pid;
+    program.executable = (*program_exec).clone();   // Change if .clone() ins't necessary
+
     program.add_args(args_ptr);
 
     if program_pid < 0 {
@@ -181,7 +183,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
         }
     }
 
-    return program;
+    // return program;
 }
 
 
@@ -220,15 +222,14 @@ fn main() {
 
     let mut running: bool = true;
     let mut prev_comms: Vec<String> = Vec::new();
-
-    let mut comm_counter: usize = 0;
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
 
     // Main loop
     while running {
         terminal::print_prompt();
-        let input = terminal::key_commands(&mut prev_comms,&mut comm_counter);
-        println!("");
+        let input = terminal::key_commands(&mut prev_comms);
+        println!();
+
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
         // Filter out bash commands if they exist
@@ -246,7 +247,7 @@ fn main() {
             }
         };
 
-        let mut spliterator: Split<char> = input.as_str().split(' '); 
+        let mut spliterator: Split<char> = input.as_str().split(' ');
         match spliterator.next() {
             Some(arg) => match arg {
                 "help" | "h" => print_help(),
@@ -275,15 +276,30 @@ fn main() {
                                 vec_program_args.push(program_args.to_string());
                             }
                         }
-                        program = run_config(&filename, vec_program_args);
+                        // program = run_config(&filename, vec_program_args);
+                        run_config(&mut program, &filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
                         if let Some(num) = spliterator.next() {
-                            println!("del break {}", num); // del_break_single(num);
+
+                            let break_no = match num.parse::<u64>() {
+                                Ok(number) => number,
+                                Err(f) => u64::MAX,
+                            };
+                            if break_no != u64::MAX {
+                                program.delete_breakpoint(break_no);
+                                println!("Breakpoint deleted!");
+                            }
+                            else {
+                                println!("The given breakpoint argument must be a number");
+                            }
                         }
                         else {
-                            /* delete_break_all(); */    // Tu me popravite če ni tak mišljeno
+                            while program.breakpoints.len() != 0 {
+                                program.delete_breakpoint(0);
+                            }
+                            println!("All breakpoints deleted!");
                         }
                     }
                     else { println!("Specify what to delete: del <break> [n]"); }
@@ -308,11 +324,17 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => println!("continue"),
-                "step" | "s" => println!("step"),
+                "continue" | "c" => program.resume(),
+                "step" | "s" => {
+                    program.singlestep();
+                    program.wait();
+                    // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
+                    println!("0x{:x}", program.get_user_struct().regs.rip);
+                },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
-                        println!("dissasemble {} ", func.to_string());
+                        //println!("dissasemble {} ", func.to_string());
+                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -320,9 +342,22 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
-                        program.set_breakpoint(addr);
-                        println!("Breakpoint set at 0x{:016x}!", addr);
+                        // if address.starts_with("0x") {
+                            // let addr: u64 = u64::from_str_radix(&address[2..], 16).unwrap();
+                            let addr: u64 = match u64::from_str_radix(&address.trim_start_matches("0x"), 16) {
+                                Ok(a) => a,
+                                Err(f) => u64::MAX,
+                            };
+                            if addr != u64::MAX {
+                                program.set_breakpoint(addr);
+                            }
+                            else {
+                                println!("Address must be a hex string");
+                            }
+                        // }
+                        // else {
+                            // println!("Address must start with '0x' prefix");
+                        // }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -330,7 +365,16 @@ fn main() {
                 },
                 "on" => {
                     if let Some(num) = spliterator.next(){
-                        println!("enable breakpoint on: {}", num);
+                        let break_no = match num.parse::<u64>() {
+                            Ok(number) => number,
+                            Err(f) => u64::MAX,
+                        };
+                        if break_no != u64::MAX {
+                            program.enable_breakpoint(break_no);
+                        }
+                        else {
+                            println!("The given breakpoint argument must be a number");
+                        }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -338,7 +382,16 @@ fn main() {
                 },
                 "off" => {
                     if let Some(num) =spliterator.next(){
-                        println!("disable breakpoint on: {}", num);
+                        let break_no = match num.parse::<u64>() {
+                            Ok(number) => number,
+                            Err(f) => u64::MAX,
+                        };
+                        if break_no != u64::MAX {
+                            program.disable_breakpoint(break_no);
+                        }
+                        else {
+                            println!("The given breakpoint argument must be a number");
+                        }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -423,8 +476,7 @@ fn main() {
                     if let Some(topic) = spliterator.next() {
                         match topic {
                             "header" => header_info::header_info(&buffer),
-                            // run_config needs to return the whole program object or the pid_t
-                            // "process" => process_info::process_info(pid),
+                            "process" => process_info::process_info(program.pid),
                             _ => println!("not enouhg argumets type 'help' "),
                         }
                     }
