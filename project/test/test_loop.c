@@ -12,7 +12,7 @@ int main() {
 
 		if (check(n)) {
 			printf("Correct value!\n");
-			break;
+			return 0;
 		} else {
 			printf("Try again");
 		}
