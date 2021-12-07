@@ -112,11 +112,18 @@ impl Program {
         for i in 0..self.breakpoints.len() {
             let bp: Breakpoint = self.breakpoints[i].clone();
 
-            println!("{c1}Breakpoint {} at {c2}0x{:016x}", i, bp.addr, c1=color::Fg(color::LightMagenta), c2=color::Fg(color::Yellow));
+            println!("{c1}Breakpoint {} at {c2}0x{:016x} : {}", i, bp.addr, bp.enabled, c1=color::Fg(color::LightMagenta), c2=color::Fg(color::Yellow));
         }
     }
 
     pub fn set_breakpoint(&mut self, loc: u64) {
+        // Check if breakpoint already exists
+        let mut index = self.breakpoints.iter().position(|i| i.addr == loc);
+        if index.is_some() {
+            println!("Breakpoint is already set.");
+            return;
+        }
+
         let orig_byte: u8 = self.peek_byte_at(loc);
 
         self.poke_byte_at(loc, 0xCC);
@@ -126,33 +133,70 @@ impl Program {
                 orig_byte: orig_byte,
                 enabled: true,
         });
+
+        println!("Breakpoint set at 0x{:016x}!", loc);
     }
 
-    pub fn delete_breakpoint(&mut self, location: u64) {
-
-        let loc: u64 = (location / 8) * 8;
-        let mut index = self.breakpoints.iter().position(|i| i.addr == loc);
-
-        match index {
-            Some(i) => {
-                let mut orig_byte: u8 = self.breakpoints[i].orig_byte;
-                self.poke_byte_at(loc, orig_byte);
-                self.breakpoints.remove(i);
-            },
-            None => println!("Breakpoint with that address doesn't exist."),
+    pub fn delete_breakpoint(&mut self, no: u64) {
+        let index = no as usize;
+        if self.breakpoints.len() < index {
+            println!("Breakpoint with that address doesn't exist.");
+        }
+        else {
+            let mut orig_byte: u8 = self.breakpoints[index].orig_byte;
+            let mut addr = self.breakpoints[index].addr;
+            self.poke_byte_at(addr, orig_byte);
+            self.breakpoints.remove(index);
         }
 
         // match index {
-        //     Ok(i) => return i,
-        //     Err(e) => println!("Error: given address doesn't exist."),
+        //     Some(i) => {
+        //         let mut orig_byte: u8 = self.breakpoints[i].orig_byte;
+        //         let mut addr = self.breakpoints[i].loc;
+        //         self.poke_byte_at(addr, orig_byte);
+        //         self.breakpoints.remove(i);
+        //     },
+        //     None => println!("Breakpoint with that address doesn't exist."),
         // }
+    }
 
-        // for i in 0..self.breakpoints.len() {
-        //     if self.breakpoints[i].addr == loc {
-        //         orig_byte = self.breakpoints[i].orig_byte;
-        //         index = i;
-        //     }
-        // }
+    pub fn enable_breakpoint(&mut self, no: u64){
+        let index = no as usize;
+
+        if self.breakpoints.len() < index {
+            println!("Breakpoint with that address DOESN'T EXIST.");
+        }
+        else {
+            if !self.breakpoints[index].enabled {
+                let mut addr = self.breakpoints[index].addr;
+                self.poke_byte_at(addr, 0xCC);
+                self.breakpoints[index].enabled = true;
+                println!("Breakpoint is enabled.");
+            }
+            else {
+                println!("Breakpoint with that address is ALREADY ENABLED.");
+            }
+        }
+    }
+
+    pub fn disable_breakpoint(&mut self, no: u64){
+        let index = no as usize;
+
+        if self.breakpoints.len() < index {
+            println!("Breakpoint with that address DOESN'T EXIST.");
+        }
+        else {
+            if self.breakpoints[index].enabled {
+                let mut orig_byte: u8 = self.breakpoints[index].orig_byte;
+                let mut addr = self.breakpoints[index].addr;
+                self.poke_byte_at(addr, orig_byte);
+                self.breakpoints[index].enabled = false;
+                println!("Breakpoint is disabled.");
+            }
+            else {
+                println!("Breakpoint with that address is ALREADY DISABLED.");
+            }
+        }
     }
 
     pub fn handle_breakpoint(&mut self) {

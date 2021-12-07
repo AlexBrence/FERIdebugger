@@ -279,10 +279,24 @@ fn main() {
                 "del" => {
                     if let Some("break") = spliterator.next() {
                         if let Some(num) = spliterator.next() {
-                            println!("del break {}", num); // del_break_single(num);
+
+                            let break_no = match num.parse::<u64>() {
+                                Ok(number) => number,
+                                Err(f) => u64::MAX,
+                            };
+                            if break_no != u64::MAX {
+                                program.delete_breakpoint(break_no);
+                                println!("Breakpoint deleted!");
+                            }
+                            else {
+                                println!("The given breakpoint argument must be a number");
+                            }
                         }
                         else {
-                            /* delete_break_all(); */    // Tu me popravite če ni tak mišljeno
+                            while program.breakpoints.len() != 0 {
+                                program.delete_breakpoint(0);
+                            }
+                            println!("All breakpoints deleted!");
                         }
                     }
                     else { println!("Specify what to delete: del <break> [n]"); }
@@ -325,10 +339,22 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        // TODO: add so the address argument can have '0x' prefix
-                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
-                        program.set_breakpoint(addr);
-                        println!("Breakpoint set at 0x{:016x}!", addr);
+                        // if address.starts_with("0x") {
+                            // let addr: u64 = u64::from_str_radix(&address[2..], 16).unwrap();
+                            let addr: u64 = match u64::from_str_radix(&address.trim_start_matches("0x"), 16) {
+                                Ok(a) => a,
+                                Err(f) => u64::MAX,
+                            };
+                            if addr != u64::MAX {
+                                program.set_breakpoint(addr);
+                            }
+                            else {
+                                println!("Address must be a hex string");
+                            }
+                        // }
+                        // else {
+                            // println!("Address must start with '0x' prefix");
+                        // }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -336,7 +362,16 @@ fn main() {
                 },
                 "on" => {
                     if let Some(num) = spliterator.next(){
-                        println!("enable breakpoint on: {}", num);
+                        let break_no = match num.parse::<u64>() {
+                            Ok(number) => number,
+                            Err(f) => u64::MAX,
+                        };
+                        if break_no != u64::MAX {
+                            program.enable_breakpoint(break_no);
+                        }
+                        else {
+                            println!("The given breakpoint argument must be a number");
+                        }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -344,7 +379,16 @@ fn main() {
                 },
                 "off" => {
                     if let Some(num) =spliterator.next(){
-                        println!("disable breakpoint on: {}", num);
+                        let break_no = match num.parse::<u64>() {
+                            Ok(number) => number,
+                            Err(f) => u64::MAX,
+                        };
+                        if break_no != u64::MAX {
+                            program.disable_breakpoint(break_no);
+                        }
+                        else {
+                            println!("The given breakpoint argument must be a number");
+                        }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
