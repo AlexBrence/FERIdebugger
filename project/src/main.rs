@@ -8,19 +8,21 @@ mod header_info;
 mod process_info;
 mod terminal;
 mod registers;
+mod conversion;
 
 extern crate termion;       // for colors, style
 extern crate libc;
 extern crate capstone;
 
 use capstone::prelude::*;
-use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
+use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, WIFSTOPPED, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
 use termion::{color, style};
 use std::{self, env, ffi::CString, io, io::Write, os::unix::prelude::OsStringExt, process,
-          process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread, 
+          process::{Command, ExitStatus, Output, Stdio}, str::{Split,from_utf8}, thread,
           fmt};
+
 
 
 fn get_input() -> String {
@@ -32,9 +34,10 @@ fn get_input() -> String {
     return user_input.trim().to_string();
 }
 
+
 fn check_for_bash_command(input: &String) -> Option<String> {
-    let mut is_found: Option<usize>; 
-    let mut is_found_reverse: Option<usize>; 
+    let mut is_found: Option<usize>;
+    let mut is_found_reverse: Option<usize>;
 
     // Check for $(<command>) format
     is_found = input.find("$(");
@@ -81,12 +84,12 @@ fn check_for_bash_command(input: &String) -> Option<String> {
     }
 }
 
-fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<String>, String> { 
+fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<String>, String> {
     // Get only args from original vector
     let mut args_vec: Vec<&str> = bash_command_vec[1..].to_vec();
     let mut output: Output;
 
-    // Execute 
+    // Execute
     let mut executed_command = Command::new(bash_command_vec[0])
                                         .args(args_vec.into_iter())
                                         .output();
@@ -115,7 +118,7 @@ fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<Strin
 
 
 
-fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
+fn run_config(program: &mut Program, program_exec: &String, program_args: Vec<String>) {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -149,8 +152,13 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
     }
 
     // Create new instance and and arguments if exist
-    let mut program: Program = Program::new(program_pid,
-                                            program_exec);
+    // let mut program: Program = Program::new(program_pid,
+    //                                         );
+
+    // "New" system of running the program
+    program.pid = program_pid;
+    program.executable = (*program_exec).clone();   // Change if .clone() ins't necessary
+
     program.add_args(args_ptr);
 
     if program_pid < 0 {
@@ -168,15 +176,15 @@ fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
         // Check the exit code
         if WIFEXITED(status) {
             let x: i32 = WEXITSTATUS(status);
-            println!("Program exited with code: {}\n", x);
+            println!("\nProgram exited with code: {}\n", x);
         }
         // Or if abnormal exit e.g. segfault
         if WIFSIGNALED(status) {
-            println!("Program ended with signal: {}\n", WTERMSIG(status));
+            println!("\nProgram ended with signal: {}\n", WTERMSIG(status));
         }
     }
 
-    return program;
+    // return program;
 }
 
 fn print_registers(mut program :&mut Program){
@@ -361,7 +369,7 @@ fn main() {
         terminal::print_prompt();
         let input = terminal::key_commands(&mut prev_comms);
         println!();
- 
+
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
         // Filter out bash commands if they exist
@@ -379,7 +387,7 @@ fn main() {
             }
         };
 
-        let mut spliterator: Split<char> = input.as_str().split(' '); 
+        let mut spliterator: Split<char> = input.as_str().split(' ');
         match spliterator.next() {
             Some(arg) => match arg {
                 "help" | "h" => print_help(),
@@ -408,15 +416,31 @@ fn main() {
                                 vec_program_args.push(program_args.to_string());
                             }
                         }
-                        program = run_config(&filename, vec_program_args);
+                        // program = run_config(&filename, vec_program_args);
+                        run_config(&mut program, &filename, vec_program_args);
+                        program.remake_breakpoints();
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
                         if let Some(num) = spliterator.next() {
-                            println!("del break {}", num); // del_break_single(num);
+
+                            let break_no = match num.parse::<u64>() {
+                                Ok(number) => number,
+                                Err(f) => u64::MAX,
+                            };
+                            if break_no != u64::MAX {
+                                program.delete_breakpoint(break_no);
+                                println!("Breakpoint deleted!");
+                            }
+                            else {
+                                println!("The given breakpoint argument must be a number");
+                            }
                         }
                         else {
-                            /* delete_break_all(); */    // Tu me popravite če ni tak mišljeno
+                            while program.breakpoints.len() != 0 {
+                                program.delete_breakpoint(0);
+                            }
+                            println!("All breakpoints deleted!");
                         }
                     }
                     else { println!("Specify what to delete: del <break> [n]"); }
@@ -441,8 +465,26 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => program.resume(),
-                "step" | "s" => program.singlestep(),
+                "continue" | "c" => {
+                    program.resume();
+                    let status: libc::c_int = program.wait() as libc::c_int;
+                    unsafe {
+                        if WIFEXITED(status) {
+                            let x: i32 = WEXITSTATUS(status);
+                            println!("Program exited with code: {}\n", x);
+                        } else if WIFSTOPPED(status) {
+                            program.handle_breakpoint();
+                        } else {
+                            panic!("~strange things do be swimming in these waters~");
+                        }
+                    }
+                },
+                "step" | "s" => {
+                    program.singlestep();
+                    program.wait();
+                    // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
+                    println!("0x{:x}", program.get_user_struct().regs.rip);
+                },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
                         //println!("dissasemble {} ", func.to_string());
@@ -454,10 +496,22 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        // TODO: add so the address argument can have '0x' prefix
-                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
-                        program.set_breakpoint(addr);
-                        println!("Breakpoint set at 0x{:016x}!", addr);
+                        // if address.starts_with("0x") {
+                            // let addr: u64 = u64::from_str_radix(&address[2..], 16).unwrap();
+                            let addr: u64 = match u64::from_str_radix(&address.trim_start_matches("0x"), 16) {
+                                Ok(a) => a,
+                                Err(f) => u64::MAX,
+                            };
+                            if addr != u64::MAX {
+                                program.set_breakpoint(addr);
+                            }
+                            else {
+                                println!("Address must be a hex string");
+                            }
+                        // }
+                        // else {
+                            // println!("Address must start with '0x' prefix");
+                        // }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -465,7 +519,16 @@ fn main() {
                 },
                 "on" => {
                     if let Some(num) = spliterator.next(){
-                        println!("enable breakpoint on: {}", num);
+                        let break_no = match num.parse::<u64>() {
+                            Ok(number) => number,
+                            Err(f) => u64::MAX,
+                        };
+                        if break_no != u64::MAX {
+                            program.enable_breakpoint(break_no);
+                        }
+                        else {
+                            println!("The given breakpoint argument must be a number");
+                        }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -473,7 +536,16 @@ fn main() {
                 },
                 "off" => {
                     if let Some(num) =spliterator.next(){
-                        println!("disable breakpoint on: {}", num);
+                        let break_no = match num.parse::<u64>() {
+                            Ok(number) => number,
+                            Err(f) => u64::MAX,
+                        };
+                        if break_no != u64::MAX {
+                            program.disable_breakpoint(break_no);
+                        }
+                        else {
+                            println!("The given breakpoint argument must be a number");
+                        }
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -491,7 +563,17 @@ fn main() {
                     if let Some("reg")= spliterator.next(){
                         if let Some(name) = spliterator.next(){
                             if let Some(num) = spliterator.next(){
-                                println!("set register {} to {}", name, num);
+                                let value: u64 = match u64::from_str_radix(&num.trim_start_matches("0x"), 16) {
+                                    Ok(a) => a,
+                                    Err(f) => u64::MAX,
+                                };
+                                if value != u64::MAX {
+                                    program.set_reg(name, value);
+                                    println!("set register {} to {}", name, num);
+                                }
+                                else {
+                                    println!("Value must be a hex string or a register with that name doesn't exist");
+                                }
                             }
                             else{
                                 println!("not enough arguments type 'help' for help");
@@ -511,6 +593,49 @@ fn main() {
                 },
                 "stack" => println!("dump memory from current stack"),
                 "bt" => println!("List frames"), // use libc backtrace
+                "to" => {
+                    // Check if next parameter was given
+                    if let Some(conv_type) = spliterator.next() {
+                        let mut numbers: Vec<String> = Vec::new();
+
+                        let convert_to: conversion::Type = match conv_type {
+                            "hex" => conversion::Type::HEX,
+                            "dec" => conversion::Type::DEC,
+                            "char" => conversion::Type::CHAR,
+                            _ => {
+                                println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                                continue;
+                            }
+                        };
+
+                        // Get numbers
+                        while let Some(num) = spliterator.next() {
+                            if num.is_empty() {
+                                continue;
+                            }
+                            numbers.push(num.to_string());
+                        }
+
+                        // If none was given, give warning and omit
+                        if numbers.is_empty() {
+                            println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                            continue;
+                        }
+                        else {
+                            let result = match conversion::convert(convert_to, &mut numbers) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    println!("{}[ERROR]{} {}", color::Fg(color::Red), style::Reset, e);
+                                    continue
+                                }
+                            };
+                            println!("{}", result);
+                        }
+                    }
+                    else {
+                        println!("Usage: to <hex/dec> <number>[+/- <number>]");
+                    }
+                }
                 "info" => {
                     if let Some(topic) = spliterator.next() {
                         match topic {
