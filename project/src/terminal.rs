@@ -7,10 +7,7 @@ use termion::{color, style};
 use std::io::{stdin,stdout,Write,self,Read};
 use std::fmt::Display;
 use std::convert::TryInto;
-extern crate crossterm;
-use self::crossterm::cursor;
-use self::crossterm::Screen;
-
+use crossterm::{Color, Attribute, cursor};
 
 
 pub fn print_prompt() {
@@ -32,8 +29,7 @@ pub fn key_commands(prev_comms: &mut Vec<String>) -> String {
     let mut s = String::new();
     let mut is_comm = false;
     let mut is_prev = false;
-    let screen = Screen::default();
-    let mut cursor = cursor(&screen);
+    let mut cursor = cursor();
     let (cur_x,cur_y) = cursor.pos();
     let mut comm_counter=prev_comms.len();
     for c in io::stdin().keys(){
@@ -92,13 +88,23 @@ pub fn key_commands(prev_comms: &mut Vec<String>) -> String {
                 break;
             },
             Key::Left =>{
-                cursor.move_left(1);
+                if(cursor.pos()!=(cur_x,cur_y)){
+                    cursor.move_left(1);
+                }
+            },
+            Key::Right =>{
+                let (c_x,c_y)= cursor.pos();
+                if(c_x<=(cur_x-1+out_str.len() as u16)){
+                    cursor.move_right(1);
+                }
             },
             Key::Backspace => {
-                cursor.move_left(1);
-                print!("{}",termion::clear::AfterCursor);
-                out_str.remove(out_str.len()-1);
-                let mut s:String=out_str.clone().into_iter().collect();
+                if( out_str.len()>0){
+                    cursor.move_left(1);
+                    print!("{}",termion::clear::AfterCursor);
+                    out_str.remove(out_str.len()-1);
+                    let mut s:String=out_str.clone().into_iter().collect();
+                }
                 stdout.flush().unwrap();            
             },
             _=> {

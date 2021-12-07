@@ -7,10 +7,13 @@ mod program;
 mod header_info;
 mod process_info;
 mod terminal;
+mod registers;
 
 extern crate termion;       // for colors, style
 extern crate libc;
+extern crate capstone;
 
+use capstone::prelude::*;
 use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
@@ -28,7 +31,6 @@ fn get_input() -> String {
 
     return user_input.trim().to_string();
 }
-
 
 fn check_for_bash_command(input: &String) -> Option<String> {
     let mut is_found: Option<usize>; 
@@ -113,7 +115,7 @@ fn get_bash_command_output(mut bash_command_vec: &Vec<&str>) -> Result<Vec<Strin
 
 
 
-fn run_config(program_exec: &String, program_args: Vec<String>) {
+fn run_config(program_exec: &String, program_args: Vec<String>) -> Program {
     let program_pid: libc::pid_t;
     let mut arg_values: Vec<i8> = Vec::new();
     let mut args_ptr: Vec<*const i8> = Vec::new();
@@ -121,7 +123,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
 
     // Turn args into i8 array separated by nullbytes
     for i in 0..program_args.len() {
-        let cs = CString::new(program_args[i].as_str()).unwrap();
+        let cs = CString::new(program_args[i].clone()).unwrap();
         let cv: Vec<u8> = cs.into_bytes_with_nul();
         let mut tmp: Vec<i8> = cv.into_iter().map(|c| c as i8).collect::<_>();
         arg_values.append(&mut tmp);
@@ -157,7 +159,7 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
     else if program_pid == 0 {  // if child
         println!("Running {}", program_exec);
         program.run();
-        return;
+        // return;
     }
     else {
         println!("debugger attaching to pid {}", program_pid);
@@ -171,6 +173,147 @@ fn run_config(program_exec: &String, program_args: Vec<String>) {
         // Or if abnormal exit e.g. segfault
         if WIFSIGNALED(status) {
             println!("Program ended with signal: {}\n", WTERMSIG(status));
+        }
+    }
+
+    return program;
+}
+
+fn print_registers(mut program :&mut Program){
+    let prog = program.get_user_struct().regs.rip;
+    let sp = "     ";
+    let sp_s = "    ";
+    let name_color = color::Fg(color::Yellow);
+    let number_color = color::Fg(color::Cyan);
+    println!("
+    {}rax: {}{}0x{:016x}  {}{}
+    {}rbx: {}{}0x{:016x}  {}{}
+    {}rcx: {}{}0x{:016x}  {}{}
+    {}rdx: {}{}0x{:016x}  {}{}
+    {}rsi: {}{}0x{:016x}  {}{}
+    {}rdi: {}{}0x{:016x}  {}{}
+    {}rbp: {}{}0x{:016x}  {}{}
+    {}rsp: {}{}0x{:016x}  {}{}
+    {}r8: {}{}0x{:016x}  {}{}
+    {}r9: {}{}0x{:016x}  {}{}
+    {}r10: {}{}0x{:016x}  {}{}
+    {}r11: {}{}0x{:016x}  {}{}
+    {}r12: {}{}0x{:016x}  {}{}
+    {}r13: {}{}0x{:016x}  {}{}
+    {}r14: {}{}0x{:016x}  {}{}
+    {}r15: {}{}0x{:016x}  {}{}
+    {}rip: {}{}0x{:016x}  {}{}
+    {}eflags: {}{}0x{:016x}  {}{}
+    {}cs: {}{}0x{:016x}  {}{}
+    {}ss: {}{}0x{:016x}  {}{}
+    {}ds: {}{}0x{:016x}  {}{}
+    {}es: {}{}0x{:016x}  {}{}
+    {}fs: {}{}0x{:016x}  {}{}
+    {}gs: {}{}0x{:016x}  {}{}",
+    name_color,sp_s,number_color, program.get_user_struct().regs.rax,number_color,program.get_user_struct().regs.rax,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rbx,number_color,program.get_user_struct().regs.rbx,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rcx,number_color,program.get_user_struct().regs.rcx,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rdx,number_color,program.get_user_struct().regs.rdx,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rsi,number_color,program.get_user_struct().regs.rsi,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rdi,number_color,program.get_user_struct().regs.rdi,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rbp,number_color,program.get_user_struct().regs.rbp,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rsp,number_color,program.get_user_struct().regs.rsp,
+    name_color,sp,number_color,program.get_user_struct().regs.r8,number_color,program.get_user_struct().regs.r8,
+    name_color,sp,number_color,program.get_user_struct().regs.r9,number_color,program.get_user_struct().regs.r9,
+    name_color,sp_s,number_color,program.get_user_struct().regs.r10,number_color,program.get_user_struct().regs.r10,
+    name_color,sp_s,number_color,program.get_user_struct().regs.r11,number_color,program.get_user_struct().regs.r11,
+    name_color,sp_s,number_color,program.get_user_struct().regs.r12,number_color,program.get_user_struct().regs.r12,
+    name_color,sp_s,number_color,program.get_user_struct().regs.r13,number_color,program.get_user_struct().regs.r13,
+    name_color,sp_s,number_color,program.get_user_struct().regs.r14,number_color,program.get_user_struct().regs.r14,
+    name_color,sp_s,number_color,program.get_user_struct().regs.r15,number_color,program.get_user_struct().regs.r15,
+    name_color,sp_s,number_color,program.get_user_struct().regs.rip,number_color,program.get_user_struct().regs.rip,
+    name_color," ",number_color,program.get_user_struct().regs.eflags,number_color,program.get_user_struct().regs.eflags,
+    name_color,sp,number_color,program.get_user_struct().regs.cs,number_color,program.get_user_struct().regs.cs,
+    name_color,sp,number_color,program.get_user_struct().regs.ss,number_color,program.get_user_struct().regs.ss,
+    name_color,sp,number_color,program.get_user_struct().regs.ds,number_color,program.get_user_struct().regs.ds,
+    name_color,sp,number_color,program.get_user_struct().regs.es,number_color,program.get_user_struct().regs.es,
+    name_color,sp,number_color,program.get_user_struct().regs.fs,number_color,program.get_user_struct().regs.fs,
+    name_color,sp,number_color,program.get_user_struct().regs.gs,number_color,program.get_user_struct().regs.gs);
+}
+fn print_spec_register(mut program:&mut Program,ime: String){
+    let name_color = color::Fg(color::Yellow);
+    let number_color = color::Fg(color::Cyan);
+    match &ime as &str{
+        "rax" =>{
+            println!("{}rax: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rax,number_color,program.get_user_struct().regs.rax);
+            //println!("{}rax:{}   {}",pr{}ogram.get_user_struct().regs.rax);
+        },
+        "rbx" => {
+            println!("{}rbx:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rbx,number_color,program.get_user_struct().regs.rbx);
+        },
+        "rcx" => {
+            println!("{}rcx:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rcx,number_color,program.get_user_struct().regs.rcx);
+        },
+        "rdx" => {
+            println!("{}rdx:{} 0x{:016x}{}  {}",name_color,number_color, program.get_user_struct().regs.rdx,number_color,program.get_user_struct().regs.rdx);
+        },
+        "rsi" => {
+            println!("{}rsi:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rsi,number_color,program.get_user_struct().regs.rsi);
+        },
+        "rdi" => {
+            println!("{}rdi:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rdi,number_color,program.get_user_struct().regs.rdi);
+        },
+        "rbp" => {
+            println!("{}rbp:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rbp,number_color,program.get_user_struct().regs.rbp);
+        },
+        "rsp" => {
+            println!("{}rsp:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rsp,number_color,program.get_user_struct().regs.rsp);
+        },
+        "r8" => {
+            println!("{}r8: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r8,number_color,program.get_user_struct().regs.r8);
+        },
+        "r9" => {
+            println!("{}r9: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r9,number_color,program.get_user_struct().regs.r9);
+        },
+        "r10" => {
+            println!("{}r10:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r10,number_color,program.get_user_struct().regs.r10);
+        },
+        "r11" => {
+            println!("{}r11:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r11,number_color,program.get_user_struct().regs.r11);
+        },
+        "r12" => {
+            println!("{}r12:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r12,number_color,program.get_user_struct().regs.r12);
+        },
+        "r13" => {
+            println!("{}r13:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r13,number_color,program.get_user_struct().regs.r13);
+        },
+        "r14" => {
+            println!("{}r14:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r14,number_color,program.get_user_struct().regs.r14);
+        },
+        "r15" => {
+            println!("{}r15:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.r15,number_color,program.get_user_struct().regs.r15);
+        },
+        "rip" => {
+            println!("{}rip:{} 0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.rip,number_color,program.get_user_struct().regs.rip);
+        },
+        "eflags" => {
+            println!("{}eflags: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.eflags,number_color,program.get_user_struct().regs.eflags);
+        },
+        "cs" => {
+            println!("{}cs: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.cs,number_color,program.get_user_struct().regs.cs);
+        },
+        "ss" => {
+            println!("{}ss: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.ss,number_color,program.get_user_struct().regs.ss);
+        },
+        "ds" => {
+            println!("{}ds: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.ds,number_color,program.get_user_struct().regs.ds);
+        },
+        "es" => {
+            println!("{}es: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.es,number_color,program.get_user_struct().regs.es);
+        },
+        "fs" => {
+            println!("{}fs: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.fs,number_color,program.get_user_struct().regs.fs);
+        },
+        "gs" => {
+            println!("{}gs: {}0x{:016x}{}  {}",name_color,number_color,program.get_user_struct().regs.gs,number_color,program.get_user_struct().regs.gs);
+        },
+        _ => {
+            println!("no register under that name lives here");
         }
     }
 }
@@ -194,6 +337,21 @@ fn main() {
     // Reference to the file_object is further passed to functions
     let file_object = static_info::parse_file(&buffer);
 
+    // Program struct needed for breakpoints and process information
+    // Since the variable needs to be initialized we feed it random data
+    // Else, the whole main loop should be rewritten
+    let mut program: Program = Program::new(1234, &"".to_string());
+    // let mut program: Program = Program::new();   // THIS WOULD BE OPTIMAL
+
+    // Create Capstone object
+    let capstone_obj = Capstone::new()
+        .x86()
+        .mode(arch::x86::ArchMode::Mode64)
+        .syntax(arch::x86::ArchSyntax::Intel)
+        .detail(true)
+        .build()
+        .expect("Failed to create Capstone object");
+
     let mut running: bool = true;
     let mut prev_comms: Vec<String> = Vec::new();
     println!("Welcome to Feri Debugger. For commands and functions type 'help'.\n");
@@ -202,6 +360,7 @@ fn main() {
     while running {
         terminal::print_prompt();
         let input = terminal::key_commands(&mut prev_comms);
+        println!();
  
         let mut spliterator: Split<char> = input.as_str().split(' '); // Iterator through arguments
 
@@ -249,7 +408,7 @@ fn main() {
                                 vec_program_args.push(program_args.to_string());
                             }
                         }
-                        run_config(&filename, vec_program_args);
+                        program = run_config(&filename, vec_program_args);
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -264,7 +423,7 @@ fn main() {
                 },
                 "list" | "lb" | "lf" => {
                     if arg == "lb" {
-                        println!("list break"); /* list_break(); */
+                        program.list_breakpoints();
                     }
                     else if arg == "lf" {
                         static_info::list_func(&file_object);
@@ -272,8 +431,7 @@ fn main() {
                     else if let Some(second) = spliterator.next() {
                         match second {
                             "break" => {
-                                println!("list break");
-                                /* list_break(); */
+                                program.list_breakpoints();
                             },
                             "func" => {
                                 static_info::list_func(&file_object);
@@ -283,11 +441,12 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => println!("continue"),
-                "step" | "s" => println!("step"),
+                "continue" | "c" => program.resume(),
+                "step" | "s" => program.singlestep(),
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
-                        println!("dissasemble {} ", func.to_string());
+                        //println!("dissasemble {} ", func.to_string());
+                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -295,7 +454,10 @@ fn main() {
                 },
                 "break" | "b" => {
                     if let Some(address) = spliterator.next(){
-                        println!("break at adress {} ", address);
+                        // TODO: add so the address argument can have '0x' prefix
+                        let addr: u64 = u64::from_str_radix(&address, 16).unwrap();
+                        program.set_breakpoint(addr);
+                        println!("Breakpoint set at 0x{:016x}!", addr);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -319,10 +481,10 @@ fn main() {
                 },
                 "reg" => {
                     if let Some(name) = spliterator.next(){
-                        println!("values in all registers");
+                        print_spec_register(&mut program, name.to_string());
                     }
                     else{
-                        println!("not enough arguments type 'help' for help");
+                        print_registers(&mut program);
                     }
                 },
                 "set" => {
@@ -353,8 +515,7 @@ fn main() {
                     if let Some(topic) = spliterator.next() {
                         match topic {
                             "header" => header_info::header_info(&buffer),
-                            // run_config needs to return the whole program object or the pid_t
-                            // "process" => process_info::process_info(pid),
+                            "process" => process_info::process_info(program.pid),
                             _ => println!("not enouhg argumets type 'help' "),
                         }
                     }

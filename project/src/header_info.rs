@@ -1,11 +1,12 @@
 use std::path::Path;
 use std::fs;
 use std::error;
+use termion::{color, style};
 
 // Print information about an ELF binary from it's header
 // Header is parsed so the output is more verbose
 pub fn header_info(buffer: &Vec<u8>) {
-    
+
     let head_obj = goblin::elf::Elf::parse_header(&buffer).unwrap();
 
     let magic = head_obj.e_ident;
@@ -46,24 +47,25 @@ pub fn header_info(buffer: &Vec<u8>) {
         _ => "error in format"
     };
 
-    println!("ELF Header:
-    Magic:      {:x?}
-    Class:                              {}
-    Data:                               {}
-    Version:                            {}
-    OS/ABI:                             {}
-    ABI Version:                        {}
-    Type:                               {}
-    Version:                            {:#x}
-    Entry point address:                {:#x}
-    Start of program headers:           {} (bytes into file)
-    Start of section headers:           {} (bytes into file)
-    Flags:                              {:#x}
-    Size of this header:                {} (bytes)
-    Size of program headers:            {} (bytes)
-    Number of program headers:          {}
-    Size of section headers:            {} (bytes)
-    Number of section headers:          {}
-    Section header string table index:  {}",
-    magic, arch, endianness, version, abi, abi_version, object_file_type, head_obj.e_version, head_obj.e_entry, head_obj.e_phoff, head_obj.e_shoff, head_obj.e_flags, head_obj.e_ehsize, head_obj.e_phentsize, head_obj.e_phnum, head_obj.e_shentsize, head_obj.e_shnum, head_obj.e_shstrndx);
+    println!("\n{c1}ELF Header:
+    {c1}Magic:      {c2}{:x?}
+    {c1}Class:                              {c2}{}
+    {c1}Data:                               {c2}{}
+    {c1}Version:                            {c2}{}
+    {c1}OS/ABI:                             {c2}{}
+    {c1}ABI Version:                        {c2}{}
+    {c1}Type:                               {c2}{}
+    {c1}Version:                            {c2}{:#x}
+    {c1}Entry point address:                {c2}{:#x}
+    {c1}Start of program headers:           {c2}{} (bytes into file)
+    {c1}Start of section headers:           {c2}{} (bytes into file)
+    {c1}Flags:                              {c2}{:#x}
+    {c1}Size of this header:                {c2}{} (bytes)
+    {c1}Size of program headers:            {c2}{} (bytes)
+    {c1}Number of program headers:          {c2}{}
+    {c1}Size of section headers:            {c2}{} (bytes)
+    {c1}Number of section headers:          {c2}{}
+    {c1}Section header string table index:  {c2}{}",
+    magic, arch, endianness, version, abi, abi_version, object_file_type, head_obj.e_version, head_obj.e_entry, head_obj.e_phoff, head_obj.e_shoff, head_obj.e_flags, head_obj.e_ehsize, head_obj.e_phentsize, head_obj.e_phnum, head_obj.e_shentsize, head_obj.e_shnum, head_obj.e_shstrndx,
+    c1=color::Fg(color::LightMagenta), c2=color::Fg(color::Yellow));
 }
