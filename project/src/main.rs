@@ -7,6 +7,7 @@ mod program;
 mod header_info;
 mod process_info;
 mod terminal;
+mod registers;
 mod conversion;
 
 extern crate termion;       // for colors, style
@@ -14,7 +15,7 @@ extern crate libc;
 extern crate capstone;
 
 use capstone::prelude::*;
-use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, backtrace};
+use libc::{WEXITSTATUS, WIFEXITED, WIFSIGNALED, WTERMSIG, WIFSTOPPED, backtrace};
 use program::Program;
 use sysinfo::ProcessExt;
 use termion::{color, style};
@@ -187,7 +188,6 @@ fn run_config(program: &mut Program, program_exec: &String, program_args: Vec<St
 }
 
 
-
 fn main() {
     // TODO make this prettier
     // Read args and set filename
@@ -278,6 +278,7 @@ fn main() {
                         }
                         // program = run_config(&filename, vec_program_args);
                         run_config(&mut program, &filename, vec_program_args);
+                        program.remake_breakpoints();
                 },
                 "del" => {
                     if let Some("break") = spliterator.next() {
@@ -324,7 +325,20 @@ fn main() {
                     }
                     else { println!("Specify what to list: list <break/func>"); }
                 },
-                "continue" | "c" => program.resume(),
+                "continue" | "c" => {
+                    program.resume();
+                    let status: libc::c_int = program.wait() as libc::c_int;
+                    unsafe {
+                        if WIFEXITED(status) {
+                            let x: i32 = WEXITSTATUS(status);
+                            println!("Program exited with code: {}\n", x);
+                        } else if WIFSTOPPED(status) {
+                            program.handle_breakpoint();
+                        } else {
+                            panic!("~strange things do be swimming in these waters~");
+                        }
+                    }
+                },
                 "step" | "s" => {
                     program.singlestep();
                     program.wait();
@@ -399,17 +413,27 @@ fn main() {
                 },
                 "reg" => {
                     if let Some(name) = spliterator.next(){
-                        println!("values in all registers");
+                        registers::print_spec_register(&mut program, name.to_string());
                     }
                     else{
-                        println!("not enough arguments type 'help' for help");
+                        registers::print_registers(&mut program);
                     }
                 },
                 "set" => {
                     if let Some("reg")= spliterator.next(){
                         if let Some(name) = spliterator.next(){
                             if let Some(num) = spliterator.next(){
-                                println!("set register {} to {}", name, num);
+                                let value: u64 = match u64::from_str_radix(&num.trim_start_matches("0x"), 16) {
+                                    Ok(a) => a,
+                                    Err(f) => u64::MAX,
+                                };
+                                if value != u64::MAX {
+                                    program.set_reg(name, value);
+                                    println!("set register {} to {}", name, num);
+                                }
+                                else {
+                                    println!("Value must be a hex string or a register with that name doesn't exist");
+                                }
                             }
                             else{
                                 println!("not enough arguments type 'help' for help");
@@ -484,7 +508,9 @@ fn main() {
                         println!("not enough argumets type 'help' ");
                     }
                 },
-                "quit" | "q" => running = false,
+                "quit" | "q" => {
+                    running = false;
+                    println!("")},
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
             },
             None => todo!(),

@@ -17,7 +17,7 @@ pub fn header_info(buffer: &Vec<u8>) {
         _ => "error in format"
     };
 
-    let endianness = match head_obj.e_ident[4] {
+    let endianness = match head_obj.e_ident[5] {
         1 => "little endian",
         2 => "big endian",
         _ => "error in format"
