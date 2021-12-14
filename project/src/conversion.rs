@@ -1,3 +1,5 @@
+extern crate hex;
+
 use std::{i64, str};
 
 pub enum Type {
@@ -16,11 +18,12 @@ pub fn add(values: &Vec<i32>) -> i32 {
 }
 
 pub fn substract(values: &Vec<i32>) -> i32 {
-    let mut result: i32 = 0;
+    let mut result = values[0];
 
-    for v in values {
-        result -= v;
+    for i in 1..values.len() {
+        result -= values[i];
     }
+
     return result
 }
 
@@ -32,6 +35,16 @@ pub fn dec_to_hex(val: i32) -> String {
 
 pub fn hex_to_dec(val: i32) -> String {
     return val.to_string();
+}
+
+pub fn hex_to_char(val: &str) -> String {
+    let mut decoded = hex::decode(val).unwrap();
+    decoded.reverse();
+    let result = match str::from_utf8(&decoded) {
+        Ok(v) => v,
+        Err(_) => panic!()
+    };
+    result.to_string()
 }
 
 
@@ -57,7 +70,20 @@ pub fn convert(convert_to: Type, values: &mut Vec<String>) -> Result<String, &'s
 
     // Check what type to convert into, make certain actions based on it
     let converted: String = match convert_to {
-        Type::CHAR => todo!(),
+        Type::CHAR => {
+            let mut result_string: String = String::new();
+
+            let mut tmp: Vec<String> = values.iter()
+                                        .map(|x| x.trim_start_matches("0x").to_string())
+                                        .collect();
+            for mut item in tmp {
+                if item.len() % 2 != 0 {
+                    item = format!("0{}", item);
+                }
+                result_string += format!("{}", hex_to_char(&item)).as_str();
+            }
+            result_string
+        },
         Type::HEX => {
             let result: i32;
 
@@ -114,4 +140,3 @@ pub fn convert(convert_to: Type, values: &mut Vec<String>) -> Result<String, &'s
     };
     Ok(converted)
 }
-
