@@ -43,131 +43,226 @@ pub fn list_func(obj: &Object) {
     let mut sorted_func_table: Vec<_> = func_table.iter().collect();
     sorted_func_table.sort_by_key(|a| a.1);
 
+    let mut base_addr: u64 = match is64 {
+        true => 0x555555554000,
+        false => 0x56555000,
+    };
+
     println!();
 
     // 64bit address padding
     if is64 {
         for (name, (addr, size)) in sorted_func_table.iter() {
-            println!("{}{:#018x}  {}{}", color::Fg(color::Blue), addr,
+            println!("{}{:#018x}  {}{}", color::Fg(color::Blue), addr + base_addr,
                 color::Fg(color::Red), name);
         }
     // 32bit address padding
     } else {
         for (name, (addr, size)) in sorted_func_table.iter() {
-            println!("{}{:#010x}  {}{}", color::Fg(color::Blue), addr,
+            println!("{}{:#010x}  {}{}", color::Fg(color::Blue), addr + base_addr,
                 color::Fg(color::Red), name);
         }
     }
     println!();
 }
 
-pub fn disassemble(func_name: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) {
+pub fn disassemble(func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) {
     let mut is64: bool = true;
     let func_table = get_func_table(obj, &mut is64);
 
-    match func_table.get(func_name) {
+
+    //TODO set base_addr dynamically when ASLR on
+    // Set base_addr according to bitness
+    let mut base_addr: u64 = match is64 {
+        true => 0x555555554000,
+        false => 0x56555000,
+    };
+    let mut func_base_addr: u64 = 0;
+    let mut start: usize = 0;
+    let mut end: usize = 0;
+    let mut func_name: String = String::new();
+
+    match func_table.get(func_id) {
         Some((addr, size)) => {
-            let start: usize = *addr as usize;
-            let end: usize = (*addr + *size) as usize;
-            let asm_bytes = &buff[start..end];
+            start = *addr as usize;
+            end = (*addr + *size) as usize;
+            func_base_addr = base_addr + *addr;
+        },
+        None => {
+            // Disassemble address
+            // Check if valid address
+            match u64::from_str_radix(&func_id.trim_start_matches("0x"), 16) {
+                // Find start of function and disassemble it
+                Ok(a) => {
+                    for (key, (addr, size)) in &func_table {
+                        if (*addr + base_addr) <= a && (addr + base_addr + size) >= a {
+                            start = *addr as usize;
+                            end = (*addr + *size) as usize;
+                            func_base_addr = base_addr + *addr;
+                            func_base_addr = base_addr + *addr;
+                            func_name = key.to_string();
+                            break
+                        }
+                    }
+                },
+                Err(f) => {
+                    eprintln!("Invalid address");
+                    return;
+                }
+            };
+        },
+    };
+
+    let asm_bytes = &buff[start..end];
             
-            //TODO set base_addr dynamically when ASLR on
-            // Set base_addr according to bitness
-            let mut base_addr: u64;
-            if is64 {
-                base_addr = 0x555555554000;
-            } else {
-                base_addr = 0x56555000;
-            }
-            let func_base_addr: u64 = base_addr + *addr;
+    // Interpret bytes with Capstone
+    let insns = cap_obj.disasm_all(asm_bytes, func_base_addr)
+            .expect("Failed to disassemble");
+        println!("Showing {} instructions from {}\n", insns.len(), func_name);
 
-            // Interpret bytes with Capstone
-            let insns = cap_obj.disasm_all(asm_bytes, func_base_addr)
-                    .expect("Failed to disassemble");
-                println!("Showing {} instructions from {}\n", insns.len(), func_name);
+    let mut address: u64 = 0;
+    let mut opcode: &str = "???";
+    let mut op: &str = "";
+    let mut operands: String = "".to_owned();   // modified, printable operands
 
-            let mut address: u64 = 0;
-            let mut opcode: &str = "???";
-            let mut op: &str = "";
-            let mut operands: String = "".to_owned();   // modified, printable operands
+    // Init colors
+    let mut color1: Box<dyn FgColor> = Box::new(color::Fg(color::Yellow)); ;
+    let mut color2: Box<dyn FgColor> = Box::new(color::Fg(color::White));;
 
-            // Init colors
-            let mut color1: Box<dyn FgColor> = Box::new(color::Fg(color::Yellow)); ;
-            let mut color2: Box<dyn FgColor> = Box::new(color::Fg(color::White));;
+    for i in insns.as_ref() {
 
-            for i in insns.as_ref() {
+        address = i.address();
+        opcode = i.mnemonic().unwrap();
+        op = i.op_str().unwrap();
+        operands = op.to_owned();
 
-                address = i.address();
-                opcode = i.mnemonic().unwrap();
-                op = i.op_str().unwrap();
-                operands = op.to_owned();
+        // Format output based on opcode
+        match opcode {
+            "call" => {
+                color1 = Box::new(color::Fg(color::Magenta));
 
-                // Format output based on opcode
-                match opcode {
-                    "call" => {
-                        color1 = Box::new(color::Fg(color::Magenta));
-
-                        // Resolve address
-                        let oper: u64 = i64::from_str_radix(op.trim_start_matches("0x"), 16).unwrap() as u64;
+                // Resolve address
+                match i64::from_str_radix(op.trim_start_matches("0x"), 16) {
+                    Ok(val) => {
+                        let mut resolved = false;
+                        let mut ins_addr = val as u64;
                         color2 = Box::new(color::Fg(color::Blue));
                         for (name, (addr, size)) in func_table.iter() {
-                            if *addr + base_addr == oper {
-                                operands = format!("{}<{}> {}0x{:x}", color::Fg(color::Red), name.as_str(),
-                                    color::Fg(color::Blue), *addr + base_addr);
+                            if *addr + base_addr == ins_addr {
+                                operands = format!("{}0x{:x} {}-> {}{}", color::Fg(color::Blue), *addr + base_addr,
+                                    color::Fg(color::White), color::Fg(color::Red), name.as_str());
+                                resolved = true;
                                 break;
                             }
                         }
-                    },
+                        // If address is not resolved check if its from PLT
+                        // Get first 3 instructions
+                        // Check if one of them is call
+                        // Check what call resolves to (add next address with the offset in call)
+                        // Interpret bytes with Capstone
+                        if !resolved {
+                            let address_operand = val as u64;
+                            let start_c: usize = (address_operand - base_addr) as usize;
+                            let end_c: usize = start_c + 12;
+                            let asm_bytes_call_plt = &buff[start_c..end];
+                            match cap_obj.disasm_count(asm_bytes_call_plt, start_c as u64, 3) {
+                                Ok(isns_c) => {
+                                    let mut offset_got: u64 = 0;
+                                    let mut pc_value: u64 = 0;
+                                    let mut found_jmp = false;
+                                    let mut got_all_offsets = false;
 
-                    "nop" | "leave" | "ret" => { 
-                        color1 = Box::new(color::Fg(color::Red)); 
-                        color2 = Box::new(color::Fg(color::Red));
-                    },
+                                    for i_c in isns_c.as_ref() {
+                                        if !got_all_offsets {
+                                            match i_c.op_str() {
+                                                Some(opc) => {
+                                                    if !found_jmp {
+                                                        if i_c.mnemonic().unwrap().contains("jmp") {
+                                                            //println!("FOUND JMP FROM PLT 0x{:x} {}", i_c.address(), opc);
+                                                            offset_got = u64::from_str_radix(opc.split("+").last().unwrap().replace("]", "").trim().trim_start_matches("0x"), 16).unwrap();
+                                                            found_jmp = true
+                                                        }
+                                                    } else {
+                                                        pc_value = i_c.address();
+                                                        //println!("PC {:x}", pc_value);
+                                                        got_all_offsets = true;
+                                                    }
+                                                },
+                                                None => {},
+                                            };
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    // Calculate GOT offset
+                                    ins_addr = pc_value + offset_got + base_addr;
+                                    //println!("{:x}", ins_addr);
 
-                    "mov" | "movzx" | "lea" => {
-                        color1 = Box::new(color::Fg(color::Cyan));
+                                    for (name, (addr, size)) in func_table.iter() {
+                                        if *addr + base_addr == ins_addr {
+                                            operands = format!("{}0x{:x} {}-> {}{}", color::Fg(color::Blue), *addr + base_addr,
+                                                color::Fg(color::White), color::Fg(color::Red), name.as_str());
+                                            resolved = true;
+                                            break;
+                                        }
+                                    }
+                                },
+                                Err(_e) => {},
+                            };
+                        }
+                    },
+                    Err(_e) => {
                         color2 = Box::new(color::Fg(color::White));
                     },
-
-                    // Make all jumps green
-                    "jmp" | "je" | "jz" | "jne" | "jnz" | "jg" | "jnle" | "jge" | "jnl" | "jl" 
-                        | "jnge" | "jle" | "jng" | "je" | "jz" | "jne" | "jnz" | "ja" | "jnbe" 
-                        | "jae" | "jnb" | "jb" | "jnae" | "jbe" | "jna"
-                        => { 
-                            color1 = Box::new(color::Fg(color::Green));
-                            color2 = Box::new(color::Fg(color::Green));
-                        },
-
-                    _ => {
-                        color1 = Box::new(color::Fg(color::Yellow));
-                        color2 = Box::new(color::Fg(color::Yellow));
-                    }
                 }
+            },
 
-                /*
-                // TODO Color operands?
-                match operands {
-                    "rax" | "rcx" | "rdx" | "rbx" | "rsp" | "rbp" | "rsi" | "rdi"
-                        | "rax" | "ecx" | "edx" | "ebx" | "esp" | "ebp" | "esi" | "edi"
-                        | "ax" | "cx" | "dx" | "bx" | "sp" | "bp" | "si" | "di"
-                        | "ah" | "al" | "ch" | "cl" | "dh" | "dl" | "bh" | "bl" | "spl" | "bpl" | "sil" | "dil"
-                        => {}
-                }
-                */
-                // 64bit address padding
-                if is64 {
-                    println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
-                        color1, opcode,
-                        color2, operands);
-                // 32bit address padding
-                } else {
-                    println!("{}{:#010x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
-                        color1, opcode,
-                        color2, operands);
-                }
+            "nop" | "leave" | "ret" => { 
+                color1 = Box::new(color::Fg(color::Red)); 
+                color2 = Box::new(color::Fg(color::Red));
+            },
+
+            "mov" | "movzx" | "lea" => {
+                color1 = Box::new(color::Fg(color::Cyan));
+                color2 = Box::new(color::Fg(color::White));
+            },
+
+            // Make all jumps green
+            "jmp" | "je" | "jz" | "jne" | "jnz" | "jg" | "jnle" | "jge" | "jnl" | "jl" 
+                | "jnge" | "jle" | "jng" | "je" | "jz" | "jne" | "jnz" | "ja" | "jnbe" 
+                | "jae" | "jnb" | "jb" | "jnae" | "jbe" | "jna"
+                => { 
+                    color1 = Box::new(color::Fg(color::Green));
+                    color2 = Box::new(color::Fg(color::Green));
+                },
+
+            _ => {
+                color1 = Box::new(color::Fg(color::Yellow));
+                color2 = Box::new(color::Fg(color::Yellow));
             }
-        },
-        None => { println!("{}Error: Function not found.", color::Fg(color::Red)); }
+        }
+
+        /*
+        // TODO Color operands?
+        match operands {
+            "rax" | "rcx" | "rdx" | "rbx" | "rsp" | "rbp" | "rsi" | "rdi"
+                | "rax" | "ecx" | "edx" | "ebx" | "esp" | "ebp" | "esi" | "edi"
+                | "ax" | "cx" | "dx" | "bx" | "sp" | "bp" | "si" | "di"
+                | "ah" | "al" | "ch" | "cl" | "dh" | "dl" | "bh" | "bl" | "spl" | "bpl" | "sil" | "dil"
+                => {}
+        }
+        */
+        // 64bit address padding
+        if is64 {
+            println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
+                color1, opcode,
+                color2, operands);
+        // 32bit address padding
+        } else {
+            println!("{}{:#010x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
+                color1, opcode,
+                color2, operands);
+        }
     }
     println!();
 }
@@ -219,8 +314,35 @@ fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> 
                     // elf.dynrelas
                     // elf.dynstrtab
                     // elf.libraries -> "libc.so.6"
+                    //
+                    // DT_JMPREL -> Address of relocation entries associated solely with the PLT
+                    // -> Dyn { d_tag: "DT_JMPREL" d_val: 0x690 }
+                    //
+                    // .plt is of type SHT_PROGBITS
+                    //
+                    // DT_PLTRELSZ -> Size in bytes of PLT relocation entries
+                    // DT_PLTGOT -> Address of PLT and/or GOT
+                    //
+                    //
+                    // In [2]: hex(0x0000000000003fb8 - 0x1080)
+                    // Out[2]: '0x2f38'
+                    // 
+                    // In [3]: hex(0x0000000000003fc8 - 0x10a0)
+                    // Out[3]: '0x2f28'
+                    // 
+                    // In [4]: hex(0x0000000000003fc0 - 0x1090)
+                    // Out[4]: '0x2f30'
+                    //
+                    // hexdump only finds hardcoded address 0x3fa0 (.got.plt offset)
 
-                    // resolve functions in GOT
+                    /*
+                    match &elf.dynamic {
+                        Some(val) => { println!("{:?}", val); },
+                        None => { }
+                    };
+                    */
+
+                    // resolve functions in .got.plt
                     if section.st_value == 0 {
                         let strtab: Vec<&str> = elf.dynstrtab.to_vec().unwrap();
 
