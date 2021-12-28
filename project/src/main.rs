@@ -454,7 +454,7 @@ fn main() {
                 "stack" => println!("dump memory from current stack"),
                 "bt" => {
                     println!("Backtrace:");
-                    program.fetch_state();
+                    // program.fetch_state();
                     // program.backtrace();
                 },
                 "to" => {
