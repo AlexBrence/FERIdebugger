@@ -1,9 +1,13 @@
 #include <iostream>
 
+void who() {
+    std::cout << "friend" << std::endl;
+}
+
 void say_hello() {
     std::string greet = "Hello";
-    std::string who = "Friend";
-    std::cout << greet << " " << who << std::endl;
+    std::cout << greet << " "; 
+    who();
 }
 
 int main (int argc, char *argv[]) {
