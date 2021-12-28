@@ -10,7 +10,7 @@ mod terminal;
 mod registers;
 mod conversion;
 
-extern crate termion;       // for colors, style
+extern crate termion;
 extern crate libc;
 extern crate capstone;
 
@@ -452,7 +452,11 @@ fn main() {
                     }
                 },
                 "stack" => println!("dump memory from current stack"),
-                "bt" => println!("List frames"), // use libc backtrace
+                "bt" => {
+                    println!("Backtrace:");
+                    program.fetch_state();
+                    // program.backtrace();
+                },
                 "to" => {
                     // Check if next parameter was given
                     if let Some(conv_type) = spliterator.next() {
@@ -507,6 +511,10 @@ fn main() {
                     else {
                         println!("not enough argumets type 'help' ");
                     }
+                },
+                "stop" => {
+                    program.stop();
+                    println!("The program has been stopped.");
                 },
                 "quit" | "q" => {
                     running = false;
