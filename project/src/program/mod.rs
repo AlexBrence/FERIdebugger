@@ -4,6 +4,7 @@ use std::ffi::{CString};
 use libc::{WEXITED, c_int};
 use super::ptrace;
 use termion::{color, style};
+use hex::FromHex;
 
 
 #[derive(Clone)]
@@ -237,7 +238,7 @@ impl Program {
     }
 
     // set registers
-    pub fn set_reg(&mut self, register: &str, value: u64) {
+    pub fn set_reg(&mut self, register: &str, value: u64) -> u64 {
         let mut user: libc::user = self.get_user_struct();
         let mut regs = user.regs;
 
@@ -264,12 +265,23 @@ impl Program {
             "ss" => regs.ss = value,
             "ds" => regs.ds = value,
             "es" => regs.es = value,
-            // ADD ERROR HANDLING
-            _ => {},
+            // ERROR HANDLING
+            // _ => { println!("Register with that name doesn't exist.") },
+            _ => return u64::MAX
         }
 
         // save changes to registers
         user.regs = regs;
         self.write_user_struct(user);
+        return 0;
+    }
+
+    pub fn write_to_memory(&mut self, location: u64, data: String) {
+        let byte_array: Vec<u8> = Vec::from_hex(data).expect("Invalid Hex String");
+        // println!("{:?}", byte_array);    // TESTING
+        for i in 0..byte_array.len() {
+            let offset: u64 = i as u64;
+            self.poke_byte_at(location+offset, byte_array[i]);
+        }
     }
 }
