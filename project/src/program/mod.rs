@@ -8,6 +8,7 @@ use libc::{WEXITED, c_int, backtrace, c_void, c_char};
 use super::ptrace;
 use termion::{color, style};
 use hex::FromHex;
+use capstone::Capstone;
 
 
 #[derive(Clone)]
@@ -329,5 +330,30 @@ impl Program {
     //     let curent_backtrace = backtrace::Backtrace::new();
     //     println!("{:?}", curent_backtrace);
     // }
+
+    pub fn step_over(&mut self, cap_obj: &Capstone, buff: &Vec<u8>, location: u64) {
+            let base_addr = 0x555555554000;
+
+            let ip_val: usize = location as usize;
+            let mut start: usize = ip_val - base_addr;
+            let mut end: usize = (ip_val - base_addr) + 16;
+
+            let asm_bytes = &buff[start..end];
+            let insns = cap_obj.disasm_count(asm_bytes, ip_val as u64, 2).expect("Failed to disassemble");
+
+            let mut i = 0;
+            let mut address: u64 = 0;
+            for item in insns.as_ref() {
+                if i == 1 {
+                    address = item.address();
+                }
+                i += 1;
+            }
+
+            // Crashes hmmm..
+            self.set_breakpoint(address);
+            self.resume();
+            self.delete_breakpoint(address);
+    }
 
 }
