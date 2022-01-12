@@ -344,11 +344,12 @@ fn main() {
                     program.wait();
                     // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
                     println!("0x{:x}", program.get_user_struct().regs.rip);
+                    static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
                 },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
                         //println!("dissasemble {} ", func.to_string());
-                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
+                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj, &mut program);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
