@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use termion::{color, style};
 use std::fmt;
 use capstone::prelude::*;
+use crate::program;
 
 // https://gitlab.redox-os.org/redox-os/termion/-/issues/123
 // Implementing traits to enable putting color in one variable
@@ -66,10 +67,12 @@ pub fn list_func(obj: &Object) {
     println!();
 }
 
-pub fn disassemble(func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) {
+pub fn disassemble(func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone, program: &mut program::Program) {
     let mut is64: bool = true;
     let func_table = get_func_table(obj, &mut is64);
 
+    // Get instruction pointer if program is running
+    let ip_value = program.get_user_struct().regs.rip;
 
     //TODO set base_addr dynamically when ASLR on
     // Set base_addr according to bitness
@@ -252,19 +255,69 @@ pub fn disassemble(func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capsto
                 => {}
         }
         */
+
+        // Highlight if instruction pointer points to this address
+        if address == ip_value {
+            print!("{}", color::Bg(color::Yellow));
+            color1 = Box::new(color::Fg(color::Black));
+            color2 = Box::new(color::Fg(color::Black));
+        }
         // 64bit address padding
         if is64 {
-            println!("{}{:#018x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
+            print!("{}{:#018x}    {}{} {}{}", color::Fg(color::Blue), address,
                 color1, opcode,
                 color2, operands);
         // 32bit address padding
         } else {
-            println!("{}{:#010x}\t{}{}\t{}{}", color::Fg(color::Blue), address,
+            print!("{}{:#010x}    {}{} {}{}", color::Fg(color::Blue), address,
                 color1, opcode,
                 color2, operands);
         }
+        println!("{}", color::Bg(color::Reset));
     }
     println!();
+}
+
+pub fn print_nearby_instructions(ip_val: usize, buff: &Vec<u8>, cap_obj: &Capstone) {
+
+    /*
+    let mut base_addr: u64 = match is64 {
+        true => 0x555555554000,
+        false => 0x56555000,
+    };
+    */
+    // TODO add 32bit support
+    // TODO read from memory instead of binary
+    let base_addr = 0x555555554000;
+
+    let mut start: usize = ip_val - base_addr;
+    let mut end: usize = (ip_val - base_addr) + 16;
+
+    let asm_bytes = &buff[start..end];
+
+    // Interpret bytes with Capstone
+    let insns = cap_obj.disasm_count(asm_bytes, ip_val as u64, 3)
+            .expect("Failed to disassemble");
+
+    let mut address: u64 = 0;
+    let mut opcode: &str = "???";
+    let mut op: &str = "";
+    let mut operands: String = "".to_owned();   // modified, printable operands
+
+    for i in insns.as_ref() {
+
+        address = i.address();
+        opcode = i.mnemonic().unwrap();
+        op = i.op_str().unwrap();
+        operands = op.to_owned();
+
+        // Highlight if instruction pointer points to this address
+        if address == ip_val as u64 {
+            print!("{}", color::Bg(color::Yellow));
+        }
+        print!("{}{} {}", color::Fg(color::Black), opcode, operands);
+        println!("{}", color::Bg(color::Reset));
+    }
 }
 
 fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> {
