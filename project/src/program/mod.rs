@@ -1,7 +1,10 @@
 extern crate libc;
+extern crate backtrace;
+
 use std;
+use std::env::current_exe;
 use std::ffi::{CString};
-use libc::{WEXITED, c_int};
+use libc::{WEXITED, c_int, backtrace, c_void, c_char};
 use super::ptrace;
 use termion::{color, style};
 use hex::FromHex;
@@ -284,4 +287,47 @@ impl Program {
             self.poke_byte_at(location+offset, byte_array[i]);
         }
     }
+
+    pub fn stop(&mut self) {
+        ptrace::stop(self.pid);
+    }
+
+    // pub fn read_words(&self, from: usize, size: usize) -> Option<Vec<u64>> {
+    //     let mut words = Vec::with_capacity(size);
+    //     let wordlen = std::mem::size_of::<usize>();
+    //     for i in 0..size {
+    //         words.push(ptrace::peek_text(self.pid, (from + wordlen * i) as u64).unwrap());
+    //     }
+    //     Some(words)
+    // }
+    //
+    // pub fn fetch_state(&mut self) -> Result<(), ()> {
+    //     let registers = self.get_user_struct().regs;
+    //     let size: u64 = registers.rbp / 4 - registers.rbp / 4;
+    //     println!("rsp: {}\nrbp: {}", registers.rsp, registers.rbp);
+    //     let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
+    //     for s in &stack {
+    //         println!("0x{:016x}", s);
+    //     }
+    //     // self.handle_breakpoint();
+    //
+    //     Ok(())
+    // }
+    //
+    // pub fn backtrace(&mut self) {
+    //     const BUFF_SIZE: c_int = 10;
+    //     println!("in 1");
+    //     let nptrs: i32;
+    //     let mut buffer = [].as_mut_ptr() as *mut *mut c_void;
+    //     let strings: *mut *mut c_char;
+    //
+    //     unsafe {
+    //         let size = libc::backtrace(buffer, 10);
+    //         println!("{}", size);
+    //     }
+    //
+    //     let curent_backtrace = backtrace::Backtrace::new();
+    //     println!("{:?}", curent_backtrace);
+    // }
+
 }

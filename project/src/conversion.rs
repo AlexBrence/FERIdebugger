@@ -8,8 +8,8 @@ pub enum Type {
     HEX,
 }
 
-pub fn add(values: &Vec<i32>) -> i32 {
-    let mut result: i32 = 0;
+pub fn add(values: &Vec<i64>) -> i64 {
+    let mut result: i64 = 0;
 
     for v in values {
         result += v;
@@ -17,7 +17,7 @@ pub fn add(values: &Vec<i32>) -> i32 {
     return result
 }
 
-pub fn substract(values: &Vec<i32>) -> i32 {
+pub fn substract(values: &Vec<i64>) -> i64 {
     let mut result = values[0];
 
     for i in 1..values.len() {
@@ -28,29 +28,33 @@ pub fn substract(values: &Vec<i32>) -> i32 {
 }
 
 
-pub fn dec_to_hex(val: i32) -> String {
+pub fn dec_to_hex(val: i64) -> String {
     let hex = format!("{:#X}", val);
     return hex;
 }
 
-pub fn hex_to_dec(val: i32) -> String {
+pub fn hex_to_dec(val: i64) -> String {
     return val.to_string();
 }
 
-pub fn hex_to_char(val: &str) -> String {
-    let mut decoded = hex::decode(val).unwrap();
+pub fn hex_to_char(val: &str) -> Result<String, String> {
+    let mut decoded = match hex::decode(val) {
+        Ok(v) => v,
+        Err(e) => return Err(format!("Problem converting hex to char\n{}", e))
+    };
+
     decoded.reverse();
     let result = match str::from_utf8(&decoded) {
         Ok(v) => v,
-        Err(_) => panic!()
+        Err(e) => return Err(format!("Problem converting hex to char\n{}", e))
     };
-    result.to_string()
+    Ok(result.to_string())
 }
 
 
-pub fn convert(convert_to: Type, values: &mut Vec<String>) -> Result<String, &'static str> {
+pub fn convert(convert_to: Type, values: &mut Vec<String>) -> Result<String, String> {
 
-    let mut values_int: Vec<i32> = Vec::new();
+    let mut values_int: Vec<i64> = Vec::new();
     let mut _add: bool = false;
     let mut _substract: bool = false;
 
@@ -80,16 +84,22 @@ pub fn convert(convert_to: Type, values: &mut Vec<String>) -> Result<String, &'s
                 if item.len() % 2 != 0 {
                     item = format!("0{}", item);
                 }
-                result_string += format!("{}", hex_to_char(&item)).as_str();
+
+                let ch = match hex_to_char(&item) {
+                    Ok(v) => v,
+                    Err(e) => return Err(format!("{}", e))
+                };
+                result_string += format!("{}", ch).as_str();
             }
+
             result_string
         },
         Type::HEX => {
-            let result: i32;
+            let result: i64;
 
-            // Vec<String> to Vec<i32> of hex values
+            // Vec<String> to Vec<i64> of hex values
             values_int = values.iter()
-                                .map(|x| x.parse::<i32>().unwrap())
+                                .map(|x| x.parse::<i64>().expect("Error while parsing"))
                                 .collect();
 
             // Substract/add if desired, otherwise convert all numbers
@@ -110,14 +120,14 @@ pub fn convert(convert_to: Type, values: &mut Vec<String>) -> Result<String, &'s
             }
         },
         Type::DEC => {
-            let result: i32;
+            let result: i64;
             let tmp: Vec<&str> = values.iter()
                                         .map(|x| x.trim_start_matches("0x"))
                                         .collect();
 
-            // Vec<String> to Vec<i32> of decimal values
+            // Vec<String> to Vec<i64> of decimal values
             values_int = tmp.iter()
-                            .map(|x| i32::from_str_radix(x, 16).unwrap())
+                            .map(|x| i64::from_str_radix(x, 16).expect("Error while parsing"))
                             .collect();
 
             // Substract/add if desired, otherwise convert all numbers
