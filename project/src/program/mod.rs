@@ -331,9 +331,10 @@ impl Program {
     //     println!("{:?}", curent_backtrace);
     // }
 
-    pub fn step_over(&mut self, cap_obj: &Capstone, buff: &Vec<u8>, location: u64) {
+    pub fn step_over(&mut self, cap_obj: &Capstone, buff: &Vec<u8>) {
             let base_addr = 0x555555554000;
 
+            let location = self.get_user_struct().regs.rip;
             let ip_val: usize = location as usize;
             let mut start: usize = ip_val - base_addr;
             let mut end: usize = (ip_val - base_addr) + 16;
@@ -350,10 +351,18 @@ impl Program {
                 i += 1;
             }
 
-            // Crashes hmmm..
+            // TESTING
+            // println!("Didn't break up until now.. 0");
+            // println!("Address: {:x}", address);
+
             self.set_breakpoint(address);
             self.resume();
-            self.delete_breakpoint(address);
+
+            // delete last breakpoint set
+            // let mut orig_byte: u8 = self.breakpoints[index].orig_byte;
+            // let mut addr = self.breakpoints[index].addr;
+            // self.poke_byte_at(addr, orig_byte);
+            // self.breakpoints.remove(index);
     }
 
 }

@@ -347,27 +347,10 @@ fn main() {
                     static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
                 },
                 "stepover" | "so" => {
-                    if let Some(address) = spliterator.next(){
-                        // if address.starts_with("0x") {
-                            // let addr: u64 = u64::from_str_radix(&address[2..], 16).unwrap();
-                            let addr: u64 = match u64::from_str_radix(&address.trim_start_matches("0x"), 16) {
-                                Ok(a) => a,
-                                Err(f) => u64::MAX,
-                            };
-                            if addr != u64::MAX {
-                                program.step_over(&capstone_obj, &buffer, addr);
-                                // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
-                                println!("0x{:x}", program.get_user_struct().regs.rip);
-                                static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
-
-                            }
-                            else {
-                                println!("Address must be a hex string");
-                            }
-                    }
-                    else{
-                        println!("not enough arguments type 'help' for help");
-                    }
+                    program.step_over(&capstone_obj, &buffer);
+                    // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
+                    // println!("0x{:x}", program.get_user_struct().regs.rip);
+                    // static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
                 },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
