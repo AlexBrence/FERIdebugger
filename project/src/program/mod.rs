@@ -1,9 +1,14 @@
 extern crate libc;
+extern crate backtrace;
+
 use std;
+use std::env::current_exe;
 use std::ffi::{CString};
-use libc::{WEXITED, c_int};
+use libc::{WEXITED, c_int, backtrace, c_void, c_char};
 use super::ptrace;
 use termion::{color, style};
+use hex::FromHex;
+use capstone::Capstone;
 
 
 #[derive(Clone)]
@@ -237,7 +242,7 @@ impl Program {
     }
 
     // set registers
-    pub fn set_reg(&mut self, register: &str, value: u64) {
+    pub fn set_reg(&mut self, register: &str, value: u64) -> u64 {
         let mut user: libc::user = self.get_user_struct();
         let mut regs = user.regs;
 
@@ -264,12 +269,100 @@ impl Program {
             "ss" => regs.ss = value,
             "ds" => regs.ds = value,
             "es" => regs.es = value,
-            // ADD ERROR HANDLING
-            _ => {},
+            // ERROR HANDLING
+            // _ => { println!("Register with that name doesn't exist.") },
+            _ => return u64::MAX
         }
 
         // save changes to registers
         user.regs = regs;
         self.write_user_struct(user);
+        return 0;
     }
+
+    pub fn write_to_memory(&mut self, location: u64, data: String) {
+        let byte_array: Vec<u8> = Vec::from_hex(data).expect("Invalid Hex String");
+        // println!("{:?}", byte_array);    // TESTING
+        for i in 0..byte_array.len() {
+            let offset: u64 = i as u64;
+            self.poke_byte_at(location+offset, byte_array[i]);
+        }
+    }
+
+    pub fn stop(&mut self) {
+        ptrace::stop(self.pid);
+    }
+
+    // pub fn read_words(&self, from: usize, size: usize) -> Option<Vec<u64>> {
+    //     let mut words = Vec::with_capacity(size);
+    //     let wordlen = std::mem::size_of::<usize>();
+    //     for i in 0..size {
+    //         words.push(ptrace::peek_text(self.pid, (from + wordlen * i) as u64).unwrap());
+    //     }
+    //     Some(words)
+    // }
+    //
+    // pub fn fetch_state(&mut self) -> Result<(), ()> {
+    //     let registers = self.get_user_struct().regs;
+    //     let size: u64 = registers.rbp / 4 - registers.rbp / 4;
+    //     println!("rsp: {}\nrbp: {}", registers.rsp, registers.rbp);
+    //     let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
+    //     for s in &stack {
+    //         println!("0x{:016x}", s);
+    //     }
+    //     // self.handle_breakpoint();
+    //
+    //     Ok(())
+    // }
+    //
+    // pub fn backtrace(&mut self) {
+    //     const BUFF_SIZE: c_int = 10;
+    //     println!("in 1");
+    //     let nptrs: i32;
+    //     let mut buffer = [].as_mut_ptr() as *mut *mut c_void;
+    //     let strings: *mut *mut c_char;
+    //
+    //     unsafe {
+    //         let size = libc::backtrace(buffer, 10);
+    //         println!("{}", size);
+    //     }
+    //
+    //     let curent_backtrace = backtrace::Backtrace::new();
+    //     println!("{:?}", curent_backtrace);
+    // }
+
+    pub fn step_over(&mut self, cap_obj: &Capstone, buff: &Vec<u8>) {
+            let base_addr = 0x555555554000;
+
+            let location = self.get_user_struct().regs.rip;
+            let ip_val: usize = location as usize;
+            let mut start: usize = ip_val - base_addr;
+            let mut end: usize = (ip_val - base_addr) + 16;
+
+            let asm_bytes = &buff[start..end];
+            let insns = cap_obj.disasm_count(asm_bytes, ip_val as u64, 2).expect("Failed to disassemble");
+
+            let mut i = 0;
+            let mut address: u64 = 0;
+            for item in insns.as_ref() {
+                if i == 1 {
+                    address = item.address();
+                }
+                i += 1;
+            }
+
+            // TESTING
+            // println!("Didn't break up until now.. 0");
+            // println!("Address: {:x}", address);
+
+            self.set_breakpoint(address);
+            self.resume();
+
+            // delete last breakpoint set
+            // let mut orig_byte: u8 = self.breakpoints[index].orig_byte;
+            // let mut addr = self.breakpoints[index].addr;
+            // self.poke_byte_at(addr, orig_byte);
+            // self.breakpoints.remove(index);
+    }
+
 }

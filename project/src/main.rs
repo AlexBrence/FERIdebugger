@@ -10,7 +10,7 @@ mod terminal;
 mod registers;
 mod conversion;
 
-extern crate termion;       // for colors, style
+extern crate termion;
 extern crate libc;
 extern crate capstone;
 
@@ -344,11 +344,18 @@ fn main() {
                     program.wait();
                     // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
                     println!("0x{:x}", program.get_user_struct().regs.rip);
+                    static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
+                },
+                "stepover" | "so" => {
+                    program.step_over(&capstone_obj, &buffer);
+                    // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
+                    // println!("0x{:x}", program.get_user_struct().regs.rip);
+                    // static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
                 },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){
                         //println!("dissasemble {} ", func.to_string());
-                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj);
+                        static_info::disassemble(func, &file_object, &buffer, &capstone_obj, &mut program);
                     }
                     else{
                         println!("not enough arguments type 'help' for help");
@@ -420,24 +427,53 @@ fn main() {
                     }
                 },
                 "set" => {
-                    if let Some("reg")= spliterator.next(){
-                        if let Some(name) = spliterator.next(){
-                            if let Some(num) = spliterator.next(){
-                                let value: u64 = match u64::from_str_radix(&num.trim_start_matches("0x"), 16) {
-                                    Ok(a) => a,
-                                    Err(f) => u64::MAX,
-                                };
-                                if value != u64::MAX {
-                                    program.set_reg(name, value);
-                                    println!("set register {} to {}", name, num);
+                    if let Some(command) = spliterator.next(){
+                        match command {
+                            "reg" => {
+                                if let Some(name) = spliterator.next(){
+                                    if let Some(num) = spliterator.next(){
+                                        let value: u64 = match u64::from_str_radix(&num.trim_start_matches("0x"), 16) {
+                                            Ok(a) => a,
+                                            Err(f) => u64::MAX,
+                                        };
+                                        if value != u64::MAX {
+                                            let retreg = program.set_reg(name, value);
+                                            if retreg == u64::MAX{
+                                                println!("Register with that name doesn't exist.")
+                                            }
+                                            else {
+                                                println!("set register {} to {}", name, num);
+                                            }
+                                        }
+                                        else {
+                                            println!("Value must be a hex string or a register with that name doesn't exist");
+                                        }
+                                    }
+                                    else{
+                                        println!("not enough arguments type 'help' for help");
+                                    }
                                 }
-                                else {
-                                    println!("Value must be a hex string or a register with that name doesn't exist");
+                            },
+                            "mem" => {
+                                if let Some(addr) = spliterator.next(){
+                                    if let Some(value) = spliterator.next(){
+                                        let address: u64 = match u64::from_str_radix(&addr.trim_start_matches("0x"), 16) {
+                                            Ok(a) => a,
+                                            Err(f) => u64::MAX,
+                                        };
+                                        if address != u64::MAX {
+                                            program.write_to_memory(address, value.trim_start_matches("0x").to_string());
+                                        }
+                                        else {
+                                            println!("Value must be a hex string or you can't write at that address");
+                                        }
+                                    }
+                                    else{
+                                        println!("not enough arguments type 'help' for help");
+                                    }
                                 }
-                            }
-                            else{
-                                println!("not enough arguments type 'help' for help");
-                            }
+                            },
+                            _ => ()
                         }
                     }
                 },
@@ -452,7 +488,11 @@ fn main() {
                     }
                 },
                 "stack" => println!("dump memory from current stack"),
-                "bt" => println!("List frames"), // use libc backtrace
+                "bt" => {
+                    println!("Backtrace:");
+                    // program.fetch_state();
+                    // program.backtrace();
+                },
                 "to" => {
                     // Check if next parameter was given
                     if let Some(conv_type) = spliterator.next() {
@@ -508,6 +548,10 @@ fn main() {
                         println!("not enough argumets type 'help' ");
                     }
                 },
+                "stop" => {
+                    program.stop();
+                    println!("The program has been stopped.");
+                },
                 "quit" | "q" => {
                     running = false;
                     println!("")},
@@ -525,31 +569,33 @@ fn print_help() {
 usage: fdb <input file>
 
 optional arguments:
-    -h                      display help
+    -h                          display help
 
 debugger commands:
 
-    help                    print help for all commands
-    run / r [arg1, arg2...] run the program with arguments
-    continue / c            continue execution
-    step / s                step one instruction
+    help                        print help for all commands
+    run / r [arg1, arg2...]     run the program with arguments
+    continue / c                continue execution
+    step / s                    step one instruction
+    stepover / so               step over one instruction/function
 
-    d / disas [label]       disassemble function
-    lf / list func          list all functions
+    d / disas [label]           disassemble function
+    lf / list func              list all functions
 
-    b / break [address]     set breakpoint at given address
-    list break / lb         list all breakpoints
-    del break [n]           delete breakpoint number [n]
-    [n] on/off              enable/disable breakpoint number [n]
+    b / break [address]         set breakpoint at given address
+    list break / lb             list all breakpoints
+    del break [n]               delete breakpoint number [n]
+    [n] on/off                  enable/disable breakpoint number [n]
 
-    reg                     print values in all registers
-    reg [name]              print value in [name] register
-    set reg [name] [value]  set register [name] to value [value]
+    reg                         print values in all registers
+    reg [name]                  print value in [name] register
+    set reg [name] [value]      set register [name] to value [value]
+    set mem [address] [value]   set memory at [address] to [value]
 
-    mem [address] [n]       dump memory, [n] bytes starting from [address]
-    stack                   dump memory from current stack frame
+    mem [address] [n]           dump memory, [n] bytes starting from [address]
+    stack                       dump memory from current stack frame
 
-    info <header, process>  print information
+    info <header, process>      print information
 ";
 
     println!("{}\n", help_str);

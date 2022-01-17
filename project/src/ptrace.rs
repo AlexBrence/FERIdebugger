@@ -50,3 +50,16 @@ pub fn resume(target_pid: i32) {
         libc::ptrace(libc::PTRACE_CONT, target_pid, 0, 0);
     }
 }
+
+pub fn stop(pid: i32) {
+    unsafe {
+        libc::ptrace(libc::PTRACE_KILL, pid, 0, 0);
+    }
+}
+
+pub fn backtrace(pid: i32, user_struct: *const libc::user) {
+    unsafe {
+        let prc = libc::ptrace(libc::PTRACE_GETFPXREGS, pid, 0, user_struct);
+        println!("{}", prc);
+    }
+}
