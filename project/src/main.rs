@@ -451,10 +451,8 @@ fn main() {
                         }
                     }
                 },
-                "stack" => println!("dump memory from current stack"),
-                "bt" => {
-                    println!("Backtrace:");
-                    // program.fetch_state();
+                "stack" => {
+                    program.fetch_state(&file_object, &buffer, &capstone_obj);
                     // program.backtrace();
                 },
                 "to" => {
