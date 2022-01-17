@@ -2,11 +2,16 @@ extern crate libc;
 extern crate backtrace;
 
 use std;
+use gimli::{UninitializedUnwindContext, UnwindTable};
 use std::env::current_exe;
-use std::ffi::{CString};
+use std::ffi::CString;
 use libc::{WEXITED, c_int, backtrace, c_void, c_char};
 use super::ptrace;
 use termion::{color, style};
+use capstone::prelude::*;
+use goblin::Object;
+use super::static_info;
+
 
 
 #[derive(Clone)]
@@ -280,42 +285,86 @@ impl Program {
         ptrace::stop(self.pid);
     }
 
-    // pub fn read_words(&self, from: usize, size: usize) -> Option<Vec<u64>> {
-    //     let mut words = Vec::with_capacity(size);
-    //     let wordlen = std::mem::size_of::<usize>();
-    //     for i in 0..size {
-    //         words.push(ptrace::peek_text(self.pid, (from + wordlen * i) as u64).unwrap());
-    //     }
-    //     Some(words)
-    // }
-    //
-    // pub fn fetch_state(&mut self) -> Result<(), ()> {
-    //     let registers = self.get_user_struct().regs;
-    //     let size: u64 = registers.rbp / 4 - registers.rbp / 4;
-    //     println!("rsp: {}\nrbp: {}", registers.rsp, registers.rbp);
-    //     let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
-    //     for s in &stack {
-    //         println!("0x{:016x}", s);
-    //     }
-    //     // self.handle_breakpoint();
-    //
-    //     Ok(())
-    // }
-    //
-    // pub fn backtrace(&mut self) {
-    //     const BUFF_SIZE: c_int = 10;
-    //     println!("in 1");
-    //     let nptrs: i32;
-    //     let mut buffer = [].as_mut_ptr() as *mut *mut c_void;
-    //     let strings: *mut *mut c_char;
-    //
-    //     unsafe {
-    //         let size = libc::backtrace(buffer, 10);
-    //         println!("{}", size);
-    //     }
-    //
-    //     let curent_backtrace = backtrace::Backtrace::new();
-    //     println!("{:?}", curent_backtrace);
-    // }
+
+    pub fn read_words(&self, from: usize, size: usize) -> Option<Vec<u64>> {
+        let mut words = Vec::with_capacity(size);
+        let wordlen = std::mem::size_of::<usize>();
+        for i in 0..size {
+            words.push(ptrace::peek_text(self.pid, (from + wordlen * i) as u64).unwrap());
+        }
+        Some(words)
+    }
+
+    pub fn fetch_state(&mut self, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
+        let mut is64: bool = true;
+        let func_table = static_info::get_func_table(obj, &mut is64);
+
+        //TODO set base_addr dynamically when ASLR on
+        // Set base_addr according to bitness
+        let mut base_addr: u64 = match is64 {
+            true => 0x555555554000,
+            false => 0x56555000,
+        };
+        let mut func_base_addr: u64 = 0;
+        let mut start: usize = 0;
+        let mut end: usize = 0;
+        let mut func_name: String = String::new();
+
+        let registers = self.get_user_struct().regs;
+        let mut start: usize = 0;
+        let mut end: usize = 0;
+        let asm_bytes = &buff[start..end];
+        let insns = cap_obj.disasm_all(asm_bytes, registers.rip)
+            .expect("Failed to disassemble");
+        println!("instruction: {}", insns);
+
+        let mut opcode: &str = "???";
+        let mut op: &str = "";
+        let mut operands: String = "".to_owned();
+
+        for i in insns.as_ref() {
+            opcode = i.mnemonic().unwrap();
+            op = i.op_str().unwrap();
+            operands = op.to_owned();
+            println!("**** OPCODE: {}\nOperands: {}", opcode, operands);
+
+            match opcode {
+                "endbr64" => {
+                    println!("No stack.");
+                    return Ok(())
+                },
+                "push" => {
+                    if operands.as_str() == "rbp" || operands.as_str() == "rbx" {
+                        println!("No stack.");
+                        return Ok(())
+                    };
+                },
+                "mov" => {
+                    if operands.as_str() == "rbp, rsp" {
+                        println!("No stack.");
+                        return Ok(())
+                    }
+                },
+                "sub" => {
+                    if operands.contains("rsp") {
+                        println!("No stack.");
+                        return Ok(())
+                    }
+                },
+                _ => {}
+            }
+        }
+
+
+        let size: u64 = registers.rbp - registers.rsp;
+        println!("rsp: {}\nrbp: {}", registers.rbp, registers.rsp);
+        let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
+        for s in &stack {
+            println!("0x{:016x}", s);
+        }
+        // self.handle_breakpoint();
+
+        Ok(())
+    }
 
 }
