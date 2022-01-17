@@ -267,7 +267,7 @@ pub fn disassemble(func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capsto
     println!();
 }
 
-fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> {
+pub fn get_func_table(obj: &Object, is64: &mut bool) -> HashMap<String, (u64, u64)> {
     let mut func_table: HashMap<String, (u64, u64)> = HashMap::new();
     // Match executable type and list functions accordingly to the format
     match obj {
