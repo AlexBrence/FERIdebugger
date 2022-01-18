@@ -328,6 +328,7 @@ fn main() {
                 "continue" | "c" => {
                     program.resume();
                     let status: libc::c_int = program.wait() as libc::c_int;
+                    static_info::print_nearby_instructions(&mut program, &capstone_obj);
                     unsafe {
                         if WIFEXITED(status) {
                             let x: i32 = WEXITSTATUS(status);
@@ -343,14 +344,16 @@ fn main() {
                     program.singlestep();
                     program.wait();
                     // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
-                    println!("0x{:x}", program.get_user_struct().regs.rip);
-                    static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
+                    //println!("0x{:x}", program.get_user_struct().regs.rip);
+                    static_info::print_nearby_instructions(&mut program, &capstone_obj);
                 },
                 "stepover" | "so" => {
                     program.step_over(&capstone_obj, &buffer);
                     // TESTING - NEEDS TO BE REPLACED WITH ANOTHER FUNCTION
                     // println!("0x{:x}", program.get_user_struct().regs.rip);
                     // static_info::print_nearby_instructions(program.get_user_struct().regs.rip as usize, &buffer, &capstone_obj);
+                    //println!("0x{:x}", program.get_user_struct().regs.rip);
+                    static_info::print_nearby_instructions(&mut program, &capstone_obj);
                 },
                 "disas" | "d" => {
                     if let Some(func) = spliterator.next(){

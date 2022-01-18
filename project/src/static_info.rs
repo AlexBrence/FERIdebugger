@@ -12,6 +12,7 @@ use termion::{color, style};
 use std::fmt;
 use capstone::prelude::*;
 use crate::program;
+use crate::ptrace::peek_text;
 
 // https://gitlab.redox-os.org/redox-os/termion/-/issues/123
 // Implementing traits to enable putting color in one variable
@@ -278,8 +279,8 @@ pub fn disassemble(func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capsto
     println!();
 }
 
-pub fn print_nearby_instructions(ip_val: usize, buff: &Vec<u8>, cap_obj: &Capstone) {
-
+pub fn print_nearby_instructions(mut prog: &mut program::Program, cap_obj: &Capstone) {
+    let ip_val: u64 = prog.get_user_struct().regs.rip as u64;
     /*
     let mut base_addr: u64 = match is64 {
         true => 0x555555554000,
@@ -287,13 +288,22 @@ pub fn print_nearby_instructions(ip_val: usize, buff: &Vec<u8>, cap_obj: &Capsto
     };
     */
     // TODO add 32bit support
-    // TODO read from memory instead of binary
+    /*
     let base_addr = 0x555555554000;
 
     let mut start: usize = ip_val - base_addr;
     let mut end: usize = (ip_val - base_addr) + 16;
+    */
 
-    let asm_bytes = &buff[start..end];
+    let mut buff: Vec<u8> = Vec::new();
+    for loc in 0..32 {
+        match peek_text(prog.pid, (ip_val + loc) as u64) {
+            Ok(byte) => { buff.push(byte as u8); }
+            Err(_e) => { eprintln!("Failed to disassemble bytes!"); return; }
+        };
+    }
+    //let asm_bytes = &buff[start..end];
+    let asm_bytes = &buff;
 
     // Interpret bytes with Capstone
     let insns = cap_obj.disasm_count(asm_bytes, ip_val as u64, 3)
@@ -313,10 +323,10 @@ pub fn print_nearby_instructions(ip_val: usize, buff: &Vec<u8>, cap_obj: &Capsto
 
         // Highlight if instruction pointer points to this address
         if address == ip_val as u64 {
-            print!("{}", color::Bg(color::Yellow));
+            println!("{}{} {}", color::Fg(color::White), opcode, operands);
+        } else {
+            println!("{}{} {}", color::Fg(color::Black), opcode, operands);
         }
-        print!("{}{} {}", color::Fg(color::Black), opcode, operands);
-        println!("{}", color::Bg(color::Reset));
     }
 }
 
