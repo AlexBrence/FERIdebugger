@@ -306,17 +306,40 @@ impl Program {
             false => 0x56555000,
         };
 
+        // Check in which function we are currently
         let mut func_base_addr: u64 = 0;
         let mut start: usize = 0;
         let mut end: usize = 0;
         let mut func_name: String = String::new();
+        let mut current_func = String::new();
+
+        for func in &func_table {
+            match func_table.get(func.0) {
+                Some((addr, size)) => {
+                    let mut _start = *addr;
+                    let mut _end = (*addr + *size);
+                    func_base_addr = base_addr + *addr;
+                    let func_end_addr: u64 = func_base_addr + _end;
+
+                    // println!("func_base_addr: {}", func_base_addr);
+                    // println!("func_end_addr: {}", func_end_addr);
+                    // println!("rip: {}", registers.rip);
+                    if registers.rip >= func_base_addr && registers.rip <= func_end_addr {
+                        println!("Yeaaah boi {}", func.0);
+                    }
+
+                },
+                None => {}
+            }
+            // TODO: get rip address and if inside base_func_addr + offset it is da one man
+        }
+
 
         match func_table.get(func_id) {
             Some((addr, size)) => {
                 start = *addr as usize;
                 end = (*addr + *size) as usize;
                 func_base_addr = base_addr + *addr;
-                println!("Base address: 0x{:x}", func_base_addr);
             },
             None => {
                 // Disassemble address
