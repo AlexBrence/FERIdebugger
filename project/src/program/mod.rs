@@ -298,6 +298,7 @@ impl Program {
     pub fn fetch_state(&mut self, func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
         let mut is64: bool = true;
         let func_table = static_info::get_func_table(obj, &mut is64);
+        println!("{:#?}", func_table);
         let registers = self.get_user_struct().regs;
 
         let mut base_addr: u64 = match is64 {
@@ -315,6 +316,7 @@ impl Program {
                 start = *addr as usize;
                 end = (*addr + *size) as usize;
                 func_base_addr = base_addr + *addr;
+                println!("Base address: 0x{:x}", func_base_addr);
             },
             None => {
                 // Disassemble address
@@ -343,7 +345,7 @@ impl Program {
         let mut start: usize = 0;
         let mut end: usize = 0;
         let asm_bytes = &buff[start..end];
-        let insns = cap_obj.disasm_all(asm_bytes, registers.rsp)
+        let insns = cap_obj.disasm_all(asm_bytes, func_base_addr)
             .expect("Failed to disassemble");
         println!("instruction: {:?}", insns);
 
@@ -388,10 +390,9 @@ impl Program {
         let size: u64 = registers.rbp - registers.rsp;
         println!("rbp: {}\nrsp: {}", registers.rbp, registers.rsp);
         let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
-        for s in &stack {
-            println!("0x{:016x}", s);
+        for item in &stack {
+            println!("0x{:016x}", item);
         }
-        // self.handle_breakpoint();
 
         Ok(())
     }
