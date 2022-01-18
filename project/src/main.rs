@@ -452,8 +452,7 @@ fn main() {
                     }
                 },
                 "stack" => {
-                    program.fetch_state(&file_object, &buffer, &capstone_obj);
-                    // program.backtrace();
+                    program.fetch_state("main", &file_object, &buffer, &capstone_obj);
                 },
                 "to" => {
                     // Check if next parameter was given
