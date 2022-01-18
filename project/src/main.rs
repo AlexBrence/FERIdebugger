@@ -452,7 +452,10 @@ fn main() {
                     }
                 },
                 "stack" => {
-                    program.fetch_state("main", &file_object, &buffer, &capstone_obj);
+                    // program.fetch_state("main", &file_object, &buffer, &capstone_obj);
+                },
+                "frame" => {
+                    program.get_current_frame(&file_object);
                 },
                 "to" => {
                     // Check if next parameter was given
