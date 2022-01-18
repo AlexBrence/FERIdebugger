@@ -1,7 +1,8 @@
 extern crate libc;
 extern crate backtrace;
+extern crate itertools;
 
-use std;
+use std::{self, collections::HashMap};
 use gimli::{UninitializedUnwindContext, UnwindTable};
 use std::env::current_exe;
 use std::ffi::CString;
@@ -10,6 +11,7 @@ use super::ptrace;
 use termion::{color, style};
 use capstone::prelude::*;
 use goblin::Object;
+use itertools::Itertools;
 use super::static_info;
 
 
@@ -286,19 +288,9 @@ impl Program {
     }
 
 
-    pub fn read_words(&self, from: usize, size: usize) -> Option<Vec<u64>> {
-        let mut words = Vec::with_capacity(size);
-        let wordlen = std::mem::size_of::<usize>();
-        for i in 0..size {
-            words.push(ptrace::peek_text(self.pid, (from + wordlen * i) as u64).unwrap());
-        }
-        Some(words)
-    }
-
-    pub fn fetch_state(&mut self, func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
+    pub fn get_current_frame(&mut self, obj: &Object) {
         let mut is64: bool = true;
         let func_table = static_info::get_func_table(obj, &mut is64);
-        println!("{:#?}", func_table);
         let registers = self.get_user_struct().regs;
 
         let mut base_addr: u64 = match is64 {
@@ -308,10 +300,8 @@ impl Program {
 
         // Check in which function we are currently
         let mut func_base_addr: u64 = 0;
-        let mut start: usize = 0;
-        let mut end: usize = 0;
-        let mut func_name: String = String::new();
-        let mut current_func = String::new();
+        let mut bt: HashMap<u64, String> = HashMap::new();
+        let rip_base = registers.rip - base_addr;
 
         for func in &func_table {
             match func_table.get(func.0) {
@@ -321,103 +311,116 @@ impl Program {
                     func_base_addr = base_addr + *addr;
                     let func_end_addr: u64 = func_base_addr + _end;
 
-                    // println!("func_base_addr: {}", func_base_addr);
-                    // println!("func_end_addr: {}", func_end_addr);
-                    // println!("rip: {}", registers.rip);
-                    if registers.rip >= func_base_addr && registers.rip <= func_end_addr {
-                        println!("Yeaaah boi {}", func.0);
+                    if rip_base >= *addr && rip_base <= addr + size {
+                        bt.insert(func_end_addr, func.0.clone());
+                        println!("Currently in function: {}", func.0.clone());
                     }
 
                 },
                 None => {}
             }
-            // TODO: get rip address and if inside base_func_addr + offset it is da one man
         }
-
-
-        match func_table.get(func_id) {
-            Some((addr, size)) => {
-                start = *addr as usize;
-                end = (*addr + *size) as usize;
-                func_base_addr = base_addr + *addr;
-            },
-            None => {
-                // Disassemble address
-                // Check if valid address
-                match u64::from_str_radix(&func_id.trim_start_matches("0x"), 16) {
-                    // Find start of function and disassemble it
-                    Ok(a) => {
-                        for (key, (addr, size)) in &func_table {
-                            if (*addr + base_addr) <= a && (addr + base_addr + size) >= a {
-                                start = *addr as usize;
-                                end = (*addr + *size) as usize;
-                                func_base_addr = base_addr + *addr;
-                                func_base_addr = base_addr + *addr;
-                                func_name = key.to_string();
-                                break
-                            }
-                        }
-                    },
-                    Err(f) => {
-                        eprintln!("Invalid address");
-                    }
-                };
-            },
-        };
-
-        let mut start: usize = 0;
-        let mut end: usize = 0;
-        let asm_bytes = &buff[start..end];
-        let insns = cap_obj.disasm_all(asm_bytes, func_base_addr)
-            .expect("Failed to disassemble");
-        println!("instruction: {:?}", insns);
-
-        let mut opcode: &str = "???";
-        let mut op: &str = "";
-        let mut operands: String = "".to_owned();
-
-        for i in insns.as_ref() {
-            opcode = i.mnemonic().unwrap();
-            op = i.op_str().unwrap();
-            operands = op.to_owned();
-            println!("**** OPCODE: {}\nOperands: {}", opcode, operands);
-
-            match opcode {
-                "endbr64" => {
-                    println!("No stack.");
-                    return Ok(())
-                },
-                "push" => {
-                    if operands.as_str() == "rbp" || operands.as_str() == "rbx" {
-                        println!("No stack.");
-                        return Ok(())
-                    };
-                },
-                "mov" => {
-                    if operands.as_str() == "rbp, rsp" {
-                        println!("No stack.");
-                        return Ok(())
-                    }
-                },
-                "sub" => {
-                    if operands.contains("rsp") {
-                        println!("No stack.");
-                        return Ok(())
-                    }
-                },
-                _ => println!("dafuq")
-            }
-        }
-
-
-        let size: u64 = registers.rbp - registers.rsp;
-        println!("rbp: {}\nrsp: {}", registers.rbp, registers.rsp);
-        let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
-        for item in &stack {
-            println!("0x{:016x}", item);
-        }
-
-        Ok(())
     }
+
+
+    pub fn read_words(&self, from: usize, size: usize) -> Option<Vec<u64>> {
+        let mut words = Vec::with_capacity(size);
+        let wordlen = std::mem::size_of::<usize>();
+        for i in 0..size {
+            words.push(ptrace::peek_text(self.pid, (from + wordlen * i) as u64).unwrap());
+        }
+        Some(words)
+    }
+
+    // pub fn fetch_state(&mut self, func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
+    //     // println!("{}", registers.rip);
+    //     // for key in bt.keys().sorted() {
+    //     //     println!("{:?} has {:?}", key, bt[key]);
+    //     // }
+    //
+    //     match func_table.get(func_id) {
+    //         Some((addr, size)) => {
+    //             start = *addr as usize;
+    //             end = (*addr + *size) as usize;
+    //             func_base_addr = base_addr + *addr;
+    //         },
+    //         None => {
+    //             // Disassemble address
+    //             // Check if valid address
+    //             match u64::from_str_radix(&func_id.trim_start_matches("0x"), 16) {
+    //                 // Find start of function and disassemble it
+    //                 Ok(a) => {
+    //                     for (key, (addr, size)) in &func_table {
+    //                         if (*addr + base_addr) <= a && (addr + base_addr + size) >= a {
+    //                             start = *addr as usize;
+    //                             end = (*addr + *size) as usize;
+    //                             func_base_addr = base_addr + *addr;
+    //                             func_base_addr = base_addr + *addr;
+    //                             func_name = key.to_string();
+    //                             break
+    //                         }
+    //                     }
+    //                 },
+    //                 Err(f) => {
+    //                     eprintln!("Invalid address");
+    //                 }
+    //             };
+    //         },
+    //     };
+    //
+    //     let mut start: usize = 0;
+    //     let mut end: usize = 0;
+    //     let asm_bytes = &buff[start..end];
+    //     let insns = cap_obj.disasm_all(asm_bytes, func_base_addr)
+    //         .expect("Failed to disassemble");
+    //     println!("instruction: {:?}", insns);
+    //
+    //     let mut opcode: &str = "???";
+    //     let mut op: &str = "";
+    //     let mut operands: String = "".to_owned();
+    //
+    //     for i in insns.as_ref() {
+    //         opcode = i.mnemonic().unwrap();
+    //         op = i.op_str().unwrap();
+    //         operands = op.to_owned();
+    //         println!("**** OPCODE: {}\nOperands: {}", opcode, operands);
+    //
+    //         match opcode {
+    //             "endbr64" => {
+    //                 println!("No stack.");
+    //                 return Ok(())
+    //             },
+    //             "push" => {
+    //                 if operands.as_str() == "rbp" || operands.as_str() == "rbx" {
+    //                     println!("No stack.");
+    //                     return Ok(())
+    //                 };
+    //             },
+    //             "mov" => {
+    //                 if operands.as_str() == "rbp, rsp" {
+    //                     println!("No stack.");
+    //                     return Ok(())
+    //                 }
+    //             },
+    //             "sub" => {
+    //                 if operands.contains("rsp") {
+    //                     println!("No stack.");
+    //                     return Ok(())
+    //                 }
+    //             },
+    //             _ => println!("dafuq")
+    //         }
+    //     }
+    //
+    //
+    //     let size: u64 = registers.rbp - registers.rsp;
+    //     println!("rbp: {}\nrsp: {}", registers.rbp, registers.rsp);
+    //     let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
+    //     for item in &stack {
+    //         println!("0x{:016x}", item);
+    //     }
+    //
+    //     Ok(())
+    // }
 
 }
