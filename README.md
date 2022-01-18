@@ -1,7 +1,7 @@
 # FERI debugger
 
 Debugger written in rust at Faculty of Electrical Engineering and Computer Science FERI.
-The project done as a part of "Software development" course in one semester.
+The project is done as a part of "Software development" course in one semester.
 
 ![alt-text](https://raw.githubusercontent.com/AlexBrence/FERIdebugger/main/FeriDebugger.png)
 
