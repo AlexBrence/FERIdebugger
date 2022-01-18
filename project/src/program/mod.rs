@@ -295,28 +295,57 @@ impl Program {
         Some(words)
     }
 
-    pub fn fetch_state(&mut self, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
+    pub fn fetch_state(&mut self, func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
         let mut is64: bool = true;
         let func_table = static_info::get_func_table(obj, &mut is64);
+        let registers = self.get_user_struct().regs;
 
-        //TODO set base_addr dynamically when ASLR on
-        // Set base_addr according to bitness
         let mut base_addr: u64 = match is64 {
             true => 0x555555554000,
             false => 0x56555000,
         };
+
         let mut func_base_addr: u64 = 0;
         let mut start: usize = 0;
         let mut end: usize = 0;
         let mut func_name: String = String::new();
 
-        let registers = self.get_user_struct().regs;
+        match func_table.get(func_id) {
+            Some((addr, size)) => {
+                start = *addr as usize;
+                end = (*addr + *size) as usize;
+                func_base_addr = base_addr + *addr;
+            },
+            None => {
+                // Disassemble address
+                // Check if valid address
+                match u64::from_str_radix(&func_id.trim_start_matches("0x"), 16) {
+                    // Find start of function and disassemble it
+                    Ok(a) => {
+                        for (key, (addr, size)) in &func_table {
+                            if (*addr + base_addr) <= a && (addr + base_addr + size) >= a {
+                                start = *addr as usize;
+                                end = (*addr + *size) as usize;
+                                func_base_addr = base_addr + *addr;
+                                func_base_addr = base_addr + *addr;
+                                func_name = key.to_string();
+                                break
+                            }
+                        }
+                    },
+                    Err(f) => {
+                        eprintln!("Invalid address");
+                    }
+                };
+            },
+        };
+
         let mut start: usize = 0;
         let mut end: usize = 0;
         let asm_bytes = &buff[start..end];
-        let insns = cap_obj.disasm_all(asm_bytes, registers.rip)
+        let insns = cap_obj.disasm_all(asm_bytes, registers.rsp)
             .expect("Failed to disassemble");
-        println!("instruction: {}", insns);
+        println!("instruction: {:?}", insns);
 
         let mut opcode: &str = "???";
         let mut op: &str = "";
@@ -351,13 +380,13 @@ impl Program {
                         return Ok(())
                     }
                 },
-                _ => {}
+                _ => println!("dafuq")
             }
         }
 
 
         let size: u64 = registers.rbp - registers.rsp;
-        println!("rsp: {}\nrbp: {}", registers.rbp, registers.rsp);
+        println!("rbp: {}\nrsp: {}", registers.rbp, registers.rsp);
         let stack = self.read_words(registers.rsp as usize, size as usize).unwrap();
         for s in &stack {
             println!("0x{:016x}", s);
