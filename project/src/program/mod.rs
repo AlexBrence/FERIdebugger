@@ -365,4 +365,38 @@ impl Program {
             // self.breakpoints.remove(index);
     }
 
+    pub fn enable_all_breakpoint(&mut self){
+        for i in 0..self.breakpoints.len() {
+            if !self.breakpoints[i].enabled {
+                let mut addr = self.breakpoints[i].addr;
+                self.poke_byte_at(addr, 0xCC);
+                self.breakpoints[i].enabled = true;
+            }
+        }
+        println!("All breakpoints are ENABLED.");
+    }
+
+    pub fn disable_all_breakpoint(&mut self){
+        for i in 0..self.breakpoints.len() {
+            if self.breakpoints[i].enabled {
+                let mut orig_byte: u8 = self.breakpoints[i].orig_byte;
+                let mut addr = self.breakpoints[i].addr;
+                self.poke_byte_at(addr, orig_byte);
+                self.breakpoints[i].enabled = false;
+            }
+        }
+        println!("All breakpoints are DISABLED.");
+    }
+
+    pub fn read_from_memory(&mut self, location: u64, size: u64) {
+        let mut output: String = String::new();
+
+        for offset in 0..size {
+            let tmp: String = String::from(format!("{:x} ", self.peek_byte_at(location+offset)));
+            output.push_str(&tmp);
+        }
+
+        println!("{}", output);
+    }
+
 }

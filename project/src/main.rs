@@ -398,11 +398,12 @@ fn main() {
                         }
                     }
                     else{
-                        println!("not enough arguments type 'help' for help");
+                        program.enable_all_breakpoint();
+                        // println!("not enough arguments type 'help' for help");
                     }
                 },
                 "off" => {
-                    if let Some(num) =spliterator.next(){
+                    if let Some(num) = spliterator.next(){
                         let break_no = match num.parse::<u64>() {
                             Ok(number) => number,
                             Err(f) => u64::MAX,
@@ -412,6 +413,35 @@ fn main() {
                         }
                         else {
                             println!("The given breakpoint argument must be a number");
+                        }
+                    }
+                    else{
+                        program.disable_all_breakpoint();
+                        // println!("not enough arguments type 'help' for help");
+                    }
+                },
+                "read" => {
+                    if let Some(num) = spliterator.next(){
+                        let addr: u64 = match u64::from_str_radix(&num.trim_start_matches("0x"), 16) {
+                            Ok(a) => a,
+                            Err(f) => u64::MAX,
+                        };
+                        if addr != u64::MAX {
+                            if let Some(no) = spliterator.next(){
+                                let size = match no.parse::<u64>() {
+                                    Ok(number) => number,
+                                    Err(f) => u64::MAX,
+                                };
+                                if size != u64::MAX {
+                                    program.read_from_memory(addr, size);
+                                }
+                                else {
+                                    println!("The given argument must be a number 1");
+                                }
+                            }
+                        }
+                        else {
+                            println!("The given argument must be a number 2");
                         }
                     }
                     else{
@@ -554,7 +584,25 @@ fn main() {
                 },
                 "quit" | "q" => {
                     running = false;
-                    println!("")},
+                    println!("")
+                },
+                "!" | "shell" => {
+                    if let Some(command) = spliterator.next() {
+
+                        let arg_vec: Vec<&str> = spliterator.collect();
+                        let mut arguments: String = String::new();
+                        for arg in arg_vec {
+                            arguments.push_str(&arg);
+                            arguments.push_str(" ");
+                        }
+
+                        let mut shell_command = Command::new("sh");
+                        shell_command.arg("-c").arg(format!("{} {}", command, &arguments[..]));
+
+                        let output = shell_command.output().expect("failed to execute process");
+                        println!("{}", String::from_utf8(output.stdout).unwrap());
+                    }
+                }
                 _ => println!("This command does not exist. Type 'help' for commands and functions."),
             },
             None => todo!(),
@@ -585,17 +633,21 @@ debugger commands:
     b / break [address]         set breakpoint at given address
     list break / lb             list all breakpoints
     del break [n]               delete breakpoint number [n]
-    [n] on/off                  enable/disable breakpoint number [n]
+    on/off [n]                  enable/disable breakpoint number [n]
+                                if no argument given: enable/disable all
 
     reg                         print values in all registers
     reg [name]                  print value in [name] register
     set reg [name] [value]      set register [name] to value [value]
     set mem [address] [value]   set memory at [address] to [value]
+    read <address> <n>          read n bytes from address
 
     mem [address] [n]           dump memory, [n] bytes starting from [address]
     stack                       dump memory from current stack frame
 
     info <header, process>      print information
+
+    ! / shell <command>         run external shell command
 ";
 
     println!("{}\n", help_str);
