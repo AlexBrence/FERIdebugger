@@ -224,7 +224,6 @@ impl Program {
                 return;
             }
         }
-
         panic!("oops");
     }
 
@@ -333,6 +332,40 @@ impl Program {
     }
 
     // pub fn fetch_state(&mut self, func_id: &str, obj: &Object, buff: &Vec<u8>, cap_obj: &Capstone) -> Result<(), ()> {
+    //     let mut is64: bool = true;
+    //     let func_table = static_info::get_func_table(obj, &mut is64);
+    //     let registers = self.get_user_struct().regs;
+    //
+    //     let mut base_addr: u64 = match is64 {
+    //         true => 0x555555554000,
+    //         false => 0x56555000,
+    //     };
+    //
+    //     // Check in which function we are currently
+    //     let mut func_base_addr: u64 = 0;
+    //     let mut start: usize = 0;
+    //     let mut end: usize = 0;
+    //     let mut bt: HashMap<u64, String> = HashMap::new();
+    //     let mut func_name: String = String::new();
+    //     let rip_base = registers.rip - base_addr;
+    //
+    //     for func in &func_table {
+    //         match func_table.get(func.0) {
+    //             Some((addr, size)) => {
+    //                 let mut _start = *addr;
+    //                 let mut _end = (*addr + *size);
+    //                 func_base_addr = base_addr + *addr;
+    //                 let func_end_addr: u64 = func_base_addr + _end;
+    //
+    //                 if rip_base >= *addr && rip_base <= addr + size {
+    //                     bt.insert(func_end_addr, func.0.clone());
+    //                     println!("Currently in function: {}", func.0.clone());
+    //                 }
+    //
+    //             },
+    //             None => {}
+    //         }
+    //     }
     //     // println!("{}", registers.rip);
     //     // for key in bt.keys().sorted() {
     //     //     println!("{:?} has {:?}", key, bt[key]);
